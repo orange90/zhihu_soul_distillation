@@ -11,6 +11,7 @@ export function getSupabase(): SupabaseClient | null {
     cached = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
       realtime: { transport: ws as any }
+    })
   }
   return cached
 }
