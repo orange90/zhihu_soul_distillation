@@ -278,40 +278,37 @@ function stripHtml(html: string): string {
 }
 
 export async function searchByAuthor(authorName: string, top = 10): Promise<ZhihuSearchAnswer[]> {
-  const res = await zhihuFetch<any>('/api/v1/content/zhihu_search', {
-    query: { query: authorName, limit: top }
+  const DEVELOPER_BASE = 'https://developer.zhihu.com'
+  const appSecret = getAppSecret()
+  if (!appSecret) throw new Error('ZHIHU_APP_SECRET 未配置')
+
+  const count = Math.min(top, 10)
+  const url = new URL(`${DEVELOPER_BASE}/api/v1/content/zhihu_search`)
+  url.searchParams.set('Query', authorName)
+  url.searchParams.set('Count', String(count))
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${appSecret}`,
+      'X-Request-Timestamp': Math.floor(Date.now() / 1000).toString(),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }
   })
   if (!res.ok) throw new Error(`search failed for ${authorName}: ${res.status}`)
-  const j: any = res.data || {}
-  const items: any[] = j.data || j.results || j.list || []
-
-  if (items.length > 0) {
-    try {
-      const sample = items[0]
-      const sampleKeys = Object.keys(sample || {})
-      const excerptLen = typeof sample.excerpt === 'string' ? sample.excerpt.length : 0
-      const contentLen = typeof sample.content === 'string' ? sample.content.length : 0
-      const summaryLen = typeof sample.summary === 'string' ? sample.summary.length : 0
-      console.warn(
-        `[zhihu_search debug] author="${authorName}" total=${items.length} firstKeys=${JSON.stringify(
-          sampleKeys
-        )} lens={excerpt:${excerptLen},content:${contentLen},summary:${summaryLen}} author=${
-          sample.author?.name || sample.author_name || '-'
-        }`
-      )
-    } catch {}
-  }
+  const j: any = await res.json()
+  if (j.Code !== 0) throw new Error(`search error for ${authorName}: ${j.Message || j.Code}`)
+  const items: any[] = j.Data?.Items || []
 
   const mapped = items.map((it) => {
-    const rawContent = it.content || it.answer_content || it.detail || ''
-    const contentText = stripHtml(String(rawContent))
+    const contentText = stripHtml(String(it.ContentText || ''))
     return {
-      title: it.title || it.question?.title || '',
-      excerpt: String(it.excerpt || it.summary || '').trim(),
+      title: it.Title || '',
+      excerpt: contentText,
       content: contentText,
-      voteup_count: Number(it.voteup_count || it.vote_up || it.likes || 0),
-      url: it.url,
-      author_name: it.author?.name || it.author_name
+      voteup_count: Number(it.VoteUpCount || 0),
+      url: it.Url,
+      author_name: it.AuthorName
     } as ZhihuSearchAnswer
   })
 

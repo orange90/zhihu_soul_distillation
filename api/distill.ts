@@ -468,6 +468,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const skills: AuthorSkills[] = []
       const cacheHits: Record<string, boolean> = {}
+      const errors: Array<{ author_id: string; message: string }> = []
 
       try {
         for (let i = 0; i < authors.length; i++) {
@@ -485,14 +486,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             cacheHits[s.author_id] = fromCache
             send('author_done', { author_id: a.id, fromCache, skills: s })
           } catch (e: any) {
-            send('author_error', {
-              author_id: a.id,
-              message: String(e?.message || e)
-            })
-            throw e
+            const message = String(e?.message || e)
+            errors.push({ author_id: a.id, message })
+            send('author_error', { author_id: a.id, message })
+            // 不再 throw：单个答主失败不应中断整个批次，其他答主继续蒸馏并落库
           }
         }
-        send('done', { skills, cacheHits })
+        if (skills.length === 0) {
+          send('error', {
+            message:
+              errors.length > 0
+                ? `所有答主蒸馏失败：${errors.map((x) => x.message).join(' ; ')}`
+                : '蒸馏结果为空'
+          })
+        } else {
+          send('done', { skills, cacheHits, errors })
+        }
       } catch (e: any) {
         send('error', { message: String(e?.message || e) })
       } finally {
@@ -503,13 +512,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const skills: AuthorSkills[] = []
     const cacheHits: Record<string, boolean> = {}
+    const errors: Array<{ author_id: string; message: string }> = []
     for (const a of authors) {
-      const { skills: s, fromCache } = await distillOne(a, undefined, { force })
-      skills.push(s)
-      cacheHits[s.author_id] = fromCache
+      try {
+        const { skills: s, fromCache } = await distillOne(a, undefined, { force })
+        skills.push(s)
+        cacheHits[s.author_id] = fromCache
+      } catch (e: any) {
+        errors.push({ author_id: a.id, message: String(e?.message || e) })
+      }
     }
 
-    return json(res, 200, { skills, cacheHits })
+    if (skills.length === 0) {
+      return serverError(
+        res,
+        new Error(
+          errors.length > 0
+            ? `所有答主蒸馏失败：${errors.map((x) => x.message).join(' ; ')}`
+            : '蒸馏结果为空'
+        )
+      )
+    }
+
+    return json(res, 200, { skills, cacheHits, errors })
   } catch (err) {
     return serverError(res, err)
   }
