@@ -173,7 +173,7 @@ async function generateSkillMarkdown(
         },
         { role: 'user', content: prompt }
       ],
-      { temperature: 0.7 }
+      { temperature: 0.7, timeoutMs: 120_000 }
     )
     const md = (content || '').trim()
     // 兜底：剥掉可能的 ```markdown ... ``` 围栏
@@ -233,7 +233,7 @@ ${source}`
         },
         { role: 'user', content: prompt }
       ],
-      { temperature: 0.5 }
+      { temperature: 0.5, timeoutMs: 60_000 }
     )
     const desc = clampDesc(content || '')
     return desc || fallbackDescFromProfile(name, profile)
