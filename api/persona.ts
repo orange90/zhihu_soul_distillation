@@ -19,11 +19,9 @@ function fuse(skills: AuthorSkills[]): Persona {
   const ranked = [...skills].sort(
     (a, b) => (Number(b.weight_score) || 0) - (Number(a.weight_score) || 0)
   )
-  const collective_views = ranked
-    .slice(0, 3)
-    .map((s) => `${s.signature_view}（${s.author_name}）`)
+  const collective_views = ranked.map((s) => `${s.signature_view}（${s.author_name}）`)
 
-  const highlight_authors = ranked.slice(0, Math.min(3, ranked.length)).map((s) => ({
+  const highlight_authors = ranked.map((s) => ({
     name: s.author_name,
     reason: `贡献了 ${s.thinking_style || '关键'} 视角的代表性观点`
   }))

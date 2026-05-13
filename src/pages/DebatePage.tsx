@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { getJSON } from '../lib/storage'
-import type { DebateResult, Persona } from '../types'
+import type { Author, DebateResult, Persona } from '../types'
+import Markdown from '../components/Markdown'
 
 const PRESET_TOPICS = [
   '年轻人该不该 all in AI？',
@@ -45,12 +46,16 @@ export default function DebatePage() {
   }, [navigate])
 
   const colorMap = useMemo(() => {
-    const m = new Map<string, { bubble: string; avatar: string }>()
+    const m = new Map<string, { bubble: string; avatar: string; avatarUrl?: string }>()
     if (!persona) return m
+    const fallbackAvatars = new Map(
+      (getJSON<Author[]>('selectedAuthors') || []).map((a) => [a.id, a.avatar_url])
+    )
     persona.contributors.forEach((c, i) => {
       m.set(c.author_id, {
         bubble: PALETTE[i % PALETTE.length],
-        avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+        avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
+        avatarUrl: c.avatar_url || fallbackAvatars.get(c.author_id)
       })
     })
     return m
@@ -176,7 +181,8 @@ export default function DebatePage() {
             <span className="ml-2">{persona.contributors.length} 位答主正在轮流发言…</span>
           </div>
           <div className="mt-3 text-xs text-zhihu-gray">
-            每轮会并行调用一次 LLM 生成各方观点，2 轮辩论通常需要 10–25 秒。
+            为避免 LLM 限流导致部分答主"沉默"，每轮最多 2 人同时发言，
+            {rounds} 轮辩论 {persona.contributors.length} 人通常需要 30–90 秒，请耐心等待。
           </div>
         </div>
       )}
@@ -184,6 +190,9 @@ export default function DebatePage() {
       {/* 辩论结果 */}
       {debate && (
         <div className="mt-8 space-y-8">
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-2 text-[11px] text-amber-700 leading-relaxed">
+            免责声明：本回答仅根据答主的蒸馏结果模拟答题，并非答主本人真实观点。
+          </div>
           <div className="card p-5">
             <div className="text-xs text-zhihu-gray">本场辩题</div>
             <div className="mt-1 text-lg font-semibold text-zhihu-ink">{debate.question}</div>
@@ -205,7 +214,8 @@ export default function DebatePage() {
                 {r.turns.map((t, i) => {
                   const c = colorMap.get(t.author_id) || {
                     bubble: PALETTE[i % PALETTE.length],
-                    avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+                    avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
+                    avatarUrl: undefined
                   }
                   return (
                     <div
@@ -213,15 +223,23 @@ export default function DebatePage() {
                       className={`rounded-2xl border p-4 ${c.bubble}`}
                     >
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-semibold ${c.avatar}`}
-                        >
-                          {t.author_name.slice(0, 1)}
-                        </span>
+                        {c.avatarUrl ? (
+                          <img
+                            src={c.avatarUrl}
+                            alt={t.author_name}
+                            className="w-7 h-7 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <span
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-semibold ${c.avatar}`}
+                          >
+                            {t.author_name.slice(0, 1)}
+                          </span>
+                        )}
                         <span className="text-sm font-semibold">{t.author_name}</span>
                       </div>
-                      <div className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">
-                        {t.content}
+                      <div className="mt-2 text-sm leading-relaxed">
+                        <Markdown content={t.content} tone="light" />
                       </div>
                     </div>
                   )
@@ -233,7 +251,9 @@ export default function DebatePage() {
           {/* 主持人总结 */}
           <section className="card p-5">
             <div className="text-xs text-zhihu-gray">主持人总结</div>
-            <p className="mt-2 text-sm text-zhihu-ink leading-relaxed">{debate.summary}</p>
+            <div className="mt-2 text-sm">
+              <Markdown content={debate.summary} tone="light" />
+            </div>
 
             <div className="mt-5 grid md:grid-cols-2 gap-4">
               <div>

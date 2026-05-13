@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 
 export default function HomePage() {
@@ -16,8 +16,16 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-16">
-      <div className="text-center">
+    <div className="relative max-w-3xl mx-auto px-4 py-16">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-[320px] h-[320px] md:w-[520px] md:h-[520px] rounded-full bg-zhihu-blue/10 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-40 -right-20 w-[200px] h-[200px] md:w-[320px] md:h-[320px] rounded-full bg-zhihu-blue/5 blur-3xl"
+      />
+      <div className="relative text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zhihu-blue-light text-zhihu-blue text-xs font-medium mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-zhihu-blue" />
           知乎 Hackathon 2026 · 引力场赛道
@@ -38,20 +46,17 @@ export default function HomePage() {
             <div className="h-11 w-40 rounded-full bg-gray-100 animate-pulse" />
           ) : user ? (
             <button className="btn-primary" onClick={() => navigate('/select')}>
-              开始蒸馏，{user.name}
+              开始蒸馏
             </button>
           ) : (
             <a className="btn-primary" href={api.loginUrl()}>
               使用知乎账号登录
             </a>
           )}
-          <Link to="/select" className="btn-ghost">
-            先看看 Demo
-          </Link>
         </div>
       </div>
 
-      <div className="mt-16 grid md:grid-cols-3 gap-4">
+      <div className="relative mt-16 grid md:grid-cols-3 gap-4">
         {[
           {
             t: '1. 选择最多 5 位',

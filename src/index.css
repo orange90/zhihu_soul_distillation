@@ -10,9 +10,21 @@ body,
 
 body {
   background-color: #f6f6f6;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 102, 255, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(0, 102, 255, 0.05), transparent 60%),
+    radial-gradient(circle, rgba(0, 102, 255, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+  background-attachment: fixed, fixed, fixed;
   color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 640px) {
+  body {
+    background-size: auto, auto, 18px 18px;
+  }
 }
 
 @layer components {

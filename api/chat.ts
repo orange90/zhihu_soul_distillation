@@ -13,12 +13,14 @@ import type {
 
 function buildSystemPrompt(userName: string, persona: Persona): string {
   const lines = persona.contributors
-    .map(
-      (c) =>
-        `- ${c.author_name}：${c.thinking_style}，擅长「${c.domain}」，代表观点：${c.signature_view}`
-    )
-    .join('\n')
-  return `你是「${userName}的知识圈集体智慧体」，由以下 ${persona.contributors.length} 位知乎用户的思想融合而成：
+    .map((c) => {
+      if (c.skill_markdown && c.skill_markdown.trim()) {
+        return `### ${c.author_name} 的写作风格 Skill\n${c.skill_markdown.trim()}`
+      }
+      return `### ${c.author_name}\n- 思维方式：${c.thinking_style}\n- 擅长：${c.domain}\n- 代表观点：${c.signature_view}`
+    })
+    .join('\n\n---\n\n')
+  return `你是「${userName}的知识圈集体智慧体」，由以下 ${persona.contributors.length} 位知乎用户的思想融合而成。下面是每位成员完整的个人 Skill 文档，你要综合他们的价值观、观点倾向与语言风格作答：
 
 ${lines}
 
@@ -28,10 +30,22 @@ ${lines}
 1. 以集体的第一人称「我们」作答
 2. 在关键判断处引用具体来源，格式：（{用户名} 的观点）
 3. 如有分歧，明确呈现不同声音而非强行统一
-4. 回答长度 200-300 字`
+4. 语言风格可以在几位成员之间切换和融合，但不要杜撰他们没表达过的立场
+5. 回答长度 200-300 字`
 }
 
 function buildPersonaCard(c: AuthorSkills): string {
+  if (c.skill_markdown && c.skill_markdown.trim()) {
+    return `你现在扮演知乎答主「${c.author_name}」。下面是你的完整写作风格 Skill 文档，请严格按照它的核心价值观、特色表达、口语词组库来发言：
+
+${c.skill_markdown.trim()}
+
+发言准则：
+1. 以第一人称「我」作答，不要替别人说话
+2. 单次发言控制在 80-140 字，观点鲜明、有锋芒
+3. 不需要客套寒暄，直接给出论点和理由
+4. 必须体现上面 Skill 文档里的标志性表达或口语词（至少 1 处）`
+  }
   return `你现在扮演知乎答主「${c.author_name}」。
 - 价值观：${c.values || '未知'}
 - 思维方式：${c.thinking_style || '未知'}
@@ -58,16 +72,30 @@ async function generateOpening(
   ]
   try {
     const r = await chatCompletion(turns, { temperature: 0.8 })
-    return {
-      author_id: contributor.author_id,
-      author_name: contributor.author_name,
-      content: (r.content || '').trim() || `（${contributor.signature_view}）`
+    const content = (r.content || '').trim()
+    if (content) {
+      return {
+        author_id: contributor.author_id,
+        author_name: contributor.author_name,
+        content
+      }
     }
-  } catch (e) {
+    const fallback = (contributor.signature_view || '').trim()
     return {
       author_id: contributor.author_id,
       author_name: contributor.author_name,
-      content: contributor.signature_view || '（暂无观点）'
+      content: fallback
+        ? `（本轮模型未返回内容，暂以代表观点占位：${fallback}）`
+        : '（本轮模型未返回内容，可重试一次或换辩题再试。）'
+    }
+  } catch (e: any) {
+    console.warn('debate opening failed for', contributor.author_name, e?.message || e)
+    return {
+      author_id: contributor.author_id,
+      author_name: contributor.author_name,
+      content: `（${contributor.author_name} 本轮发言失败：${
+        String(e?.message || e).slice(0, 80)
+      }，建议稍后重试。）`
     }
   }
 }
@@ -96,16 +124,29 @@ ${own ? `你刚才的发言是：${own.content}\n\n` : ''}现在请你回应他�
   ]
   try {
     const r = await chatCompletion(turns, { temperature: 0.85 })
-    return {
-      author_id: contributor.author_id,
-      author_name: contributor.author_name,
-      content: (r.content || '').trim() || (own?.content ?? '（继续保留前述立场）')
+    const content = (r.content || '').trim()
+    if (content) {
+      return {
+        author_id: contributor.author_id,
+        author_name: contributor.author_name,
+        content
+      }
     }
-  } catch (e) {
     return {
       author_id: contributor.author_id,
       author_name: contributor.author_name,
-      content: own?.content || contributor.signature_view || '（继续保留前述立场）'
+      content: own?.content
+        ? `（本轮模型未返回内容，沿用第一轮立场：${own.content}）`
+        : '（本轮模型未返回内容，可重试一次或换辩题再试。）'
+    }
+  } catch (e: any) {
+    console.warn('debate rebuttal failed for', contributor.author_name, e?.message || e)
+    return {
+      author_id: contributor.author_id,
+      author_name: contributor.author_name,
+      content: `（${contributor.author_name} 本轮发言失败：${
+        String(e?.message || e).slice(0, 80)
+      }，建议稍后重试。）`
     }
   }
 }
@@ -169,6 +210,24 @@ ${transcript}
   }
 }
 
+async function mapWithConcurrency<T, U>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<U>
+): Promise<U[]> {
+  const results = new Array<U>(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (true) {
+      const idx = cursor++
+      if (idx >= items.length) return
+      results[idx] = await fn(items[idx], idx)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 async function handleDebate(
   res: VercelResponse,
   persona: Persona,
@@ -182,14 +241,14 @@ async function handleDebate(
 
   const rounds: DebateRound[] = []
 
-  const openings = await Promise.all(
-    contributors.map((c) => generateOpening(c, question))
+  const openings = await mapWithConcurrency(contributors, 2, (c) =>
+    generateOpening(c, question)
   )
   rounds.push({ round: 1, topic_focus: '亮明立场', turns: openings })
 
   if (roundsCount >= 2) {
-    const rebuttals = await Promise.all(
-      contributors.map((c) => generateRebuttal(c, question, openings))
+    const rebuttals = await mapWithConcurrency(contributors, 2, (c) =>
+      generateRebuttal(c, question, openings)
     )
     rounds.push({ round: 2, topic_focus: '交锋与回应', turns: rebuttals })
   }

@@ -1,10 +1,13 @@
 export type AuthorSkills = {
   author_id: string
   author_name: string
+  avatar_url?: string
   values: string
   thinking_style: string
   domain: string
   signature_view: string
+  skill_markdown?: string
+  skill_desc?: string
   weight_score?: number
   raw_answers?: Array<{ title: string; excerpt: string; voteup_count: number; url?: string }>
   updated_at?: string
