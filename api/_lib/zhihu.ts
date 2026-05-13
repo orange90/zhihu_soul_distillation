@@ -1,10 +1,25 @@
-// 知乎开放平台 API 封装
-// 注意：知乎 OAuth 与 OpenAPI 的精确字段以官方文档为准；这里以 plan.md 描述与常见 OAuth2 流程实现，
-// 字段做了健壮性兼容（兼容多种命名），如发现接口字段不一致可在此集中修改。
+import { createHmac } from 'node:crypto'
 
-const OAUTH_BASE = process.env.ZHIHU_OAUTH_BASE_URL || 'https://www.zhihu.com'
-const OPENAPI_BASE = process.env.ZHIHU_OPENAPI_BASE_URL || 'https://api.zhihu.com'
-const AGENT_BASE = process.env.ZHIHU_AGENT_BASE_URL || 'https://api.zhihu.com'
+const OPENAPI_BASE = process.env.ZHIHU_OPENAPI_BASE_URL || 'https://openapi.zhihu.com'
+const AGENT_BASE = process.env.LLM_BASE_URL || process.env.ZHIHU_AGENT_BASE_URL || 'https://api.zhihu.com'
+
+function buildHmacHeaders(): Record<string, string> {
+  const appKey = process.env.ZHIHU_APP_KEY || ''
+  const appSecret = process.env.ZHIHU_APP_SECRET || ''
+  if (!appKey || !appSecret) return {}
+  const ts = Math.floor(Date.now() / 1000).toString()
+  const logId = `request_${Date.now()}`
+  const extraInfo = ''
+  const signStr = `app_key:${appKey}|ts:${ts}|logid:${logId}|extra_info:${extraInfo}`
+  const signature = createHmac('sha256', appSecret).update(signStr).digest('base64')
+  return {
+    'X-App-Key': appKey,
+    'X-Timestamp': ts,
+    'X-Log-Id': logId,
+    'X-Sign': signature,
+    'X-Extra-Info': extraInfo,
+  }
+}
 
 export type ZhihuUser = {
   id: string
@@ -24,29 +39,28 @@ export type ZhihuTokenResp = {
 }
 
 export function buildAuthorizeUrl(state: string) {
-  const clientId = process.env.ZHIHU_CLIENT_ID || ''
+  const appId = process.env.ZHIHU_APP_ID || process.env.ZHIHU_CLIENT_ID || ''
   const redirectUri = process.env.ZHIHU_REDIRECT_URI || ''
-  const url = new URL('/oauth/authorize', OAUTH_BASE)
-  url.searchParams.set('client_id', clientId)
+  const url = new URL('/authorize', OPENAPI_BASE)
+  url.searchParams.set('app_id', appId)
   url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('response_type', 'code')
-  url.searchParams.set('scope', 'basic')
-  url.searchParams.set('state', state)
+  if (state) url.searchParams.set('state', state)
   return url.toString()
 }
 
 export async function exchangeCodeForToken(code: string): Promise<ZhihuTokenResp> {
-  const clientId = process.env.ZHIHU_CLIENT_ID || ''
-  const clientSecret = process.env.ZHIHU_CLIENT_SECRET || ''
+  const appId = process.env.ZHIHU_APP_ID || process.env.ZHIHU_CLIENT_ID || ''
+  const appKey = process.env.ZHIHU_OAUTH_APP_KEY || process.env.ZHIHU_CLIENT_SECRET || ''
   const redirectUri = process.env.ZHIHU_REDIRECT_URI || ''
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: clientId,
-    client_secret: clientSecret,
+    app_id: appId,
+    app_key: appKey,
     code,
     redirect_uri: redirectUri
   })
-  const res = await fetch(`${OAUTH_BASE}/oauth/token`, {
+  const res = await fetch(`${OPENAPI_BASE}/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body
@@ -58,15 +72,15 @@ export async function exchangeCodeForToken(code: string): Promise<ZhihuTokenResp
 }
 
 export async function fetchMe(accessToken: string): Promise<ZhihuUser> {
-  const res = await fetch(`${OPENAPI_BASE}/openapi/user/me`, {
+  const res = await fetch(`${OPENAPI_BASE}/user`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   })
   if (!res.ok) throw new Error(`fetchMe failed: ${res.status}`)
   const j: any = await res.json()
   return {
-    id: String(j.id || j.user_id || j.uid || ''),
-    name: j.name || j.user_name || '知乎用户',
-    avatar_url: j.avatar_url || j.avatar,
+    id: String(j.uid || j.id || j.user_id || ''),
+    name: j.fullname || j.name || '知乎用户',
+    avatar_url: j.avatar_path || j.avatar_url || j.avatar,
     headline: j.headline
   }
 }
@@ -83,17 +97,17 @@ export async function fetchFollowing(
   accessToken: string,
   opts: { limit?: number } = {}
 ): Promise<ZhihuFollowingItem[]> {
-  const limit = opts.limit ?? 50
-  const res = await fetch(`${OPENAPI_BASE}/openapi/user/following?limit=${limit}`, {
+  const perPage = opts.limit ?? 50
+  const res = await fetch(`${OPENAPI_BASE}/user/followed?page=0&per_page=${perPage}`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   })
   if (!res.ok) throw new Error(`fetchFollowing failed: ${res.status} ${await res.text()}`)
   const j: any = await res.json()
-  const list: any[] = j.data || j.users || j.list || []
+  const list: any[] = Array.isArray(j) ? j : (j.data || j.users || j.list || [])
   return list.map((u) => ({
-    id: String(u.id || u.user_id || u.uid),
-    name: u.name || u.user_name || '匿名用户',
-    avatar_url: u.avatar_url || u.avatar,
+    id: String(u.uid || u.id || u.user_id),
+    name: u.fullname || u.name || '匿名用户',
+    avatar_url: u.avatar_path || u.avatar_url || u.avatar,
     headline: u.headline,
     follower_count: u.follower_count
   }))
@@ -108,11 +122,10 @@ export type ZhihuSearchAnswer = {
 }
 
 export async function searchByAuthor(authorName: string, top = 10): Promise<ZhihuSearchAnswer[]> {
-  const url = `${OPENAPI_BASE}/api/v1/content/zhihu_search?query=${encodeURIComponent(authorName)}&limit=${top}`
-  const token = process.env.ZHIHU_AGENT_TOKEN || ''
-  const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  })
+  const path = `/api/v1/content/zhihu_search`
+  const url = `${OPENAPI_BASE}${path}?query=${encodeURIComponent(authorName)}&limit=${top}`
+  const headers = buildHmacHeaders()
+  const res = await fetch(url, { headers })
   if (!res.ok) throw new Error(`search failed for ${authorName}: ${res.status}`)
   const j: any = await res.json()
   const items: any[] = j.data || j.results || j.list || []
@@ -128,14 +141,16 @@ export async function searchByAuthor(authorName: string, top = 10): Promise<Zhih
 export type ChatTurn = { role: 'system' | 'user' | 'assistant'; content: string }
 
 export async function chatCompletion(messages: ChatTurn[], opts: { temperature?: number } = {}) {
-  const token = process.env.ZHIHU_AGENT_TOKEN || ''
-  const res = await fetch(`${AGENT_BASE}/v1/chat/completions`, {
+  const token = process.env.LLM_API_KEY || process.env.ZHIHU_AGENT_TOKEN || ''
+  const model = process.env.LLM_MODEL || undefined
+  const res = await fetch(`${AGENT_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify({
+      ...(model ? { model } : {}),
       messages,
       temperature: opts.temperature ?? 0.5,
       stream: false
