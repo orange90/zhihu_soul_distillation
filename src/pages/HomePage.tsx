@@ -28,9 +28,9 @@ export default function HomePage() {
           是你<span className="text-zhihu-blue">看不见的智库</span>
         </h1>
         <p className="mt-6 text-base text-gray-600 leading-relaxed">
-          把你在知乎关注的那些人，蒸馏成一个可以对话的集体智慧体。
+          把你在知乎关注的那些人，蒸馏成一个可以对话的集体智慧体，
           <br />
-          第一次让你的社交图谱，变成你的私人智库。
+          也可以让他们就同一个话题<span className="text-zhihu-blue font-medium">互相辩论</span>，呈现共识与分歧。
         </p>
 
         <div className="mt-10 flex items-center justify-center gap-3">
@@ -62,8 +62,8 @@ export default function HomePage() {
             d: '对每个答主提取「价值观 / 思维方式 / 擅长领域 / 代表观点」。'
           },
           {
-            t: '3. 与集体对话',
-            d: '以融合人格的身份回答你的问题，每句话都可追溯到真实答主。'
+            t: '3. 对话 or 辩论',
+            d: '既能以融合人格的「我们」回答问题，也能让答主们围绕一个话题彼此交锋，自动提炼共识与分歧。'
           }
         ].map((s) => (
           <div key={s.t} className="card p-5">

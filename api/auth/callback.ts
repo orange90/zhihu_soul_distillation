@@ -15,15 +15,23 @@ function parseCookies(req: VercelRequest): Record<string, string> {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const code = String(req.query.code || '')
+    const code = String(req.query.code || req.query.authorization_code || '')
     const state = String(req.query.state || '')
     const cookies = parseCookies(req)
-    if (!code || !state || cookies.zsd_oauth_state !== state) {
+    if (!code) {
+      res.status(400).send('invalid oauth callback: missing code')
+      return
+    }
+    if (state && cookies.zsd_oauth_state && cookies.zsd_oauth_state !== state) {
       res.status(400).send('invalid oauth state')
       return
     }
+    if (!cookies.zsd_oauth_state) {
+      console.warn('[oauth callback] no zsd_oauth_state cookie; proceeding anyway')
+    }
 
     const token = await exchangeCodeForToken(code)
+    console.log('[oauth callback] token resp keys:', Object.keys(token || {}), 'has access_token:', !!token?.access_token)
     let user = { id: token.user_id || token.uid || '', name: token.user_name || '', avatar_url: undefined as string | undefined }
     try {
       const me = await fetchMe(token.access_token)

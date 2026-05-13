@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage'
 import SelectPage from './pages/SelectPage'
 import LoadingPage from './pages/LoadingPage'
 import ResultPage from './pages/ResultPage'
+import DebatePage from './pages/DebatePage'
 import Layout from './components/Layout'
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/select" element={<SelectPage />} />
         <Route path="/loading" element={<LoadingPage />} />
         <Route path="/result" element={<ResultPage />} />
+        <Route path="/debate" element={<DebatePage />} />
       </Routes>
     </Layout>
   )

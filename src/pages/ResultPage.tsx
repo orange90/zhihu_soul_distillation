@@ -94,7 +94,24 @@ export default function ResultPage() {
             <button className="btn-ghost flex-1" onClick={() => navigate('/select')}>
               重新选择
             </button>
+            <button
+              className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => navigate('/debate')}
+              disabled={persona.contributors.length < 2}
+              title={
+                persona.contributors.length < 2
+                  ? '辩论模式至少需要 2 位答主，请回到「重新选择」再加 1 人'
+                  : '让这些答主就同一个话题互相辩论'
+              }
+            >
+              开启辩论
+            </button>
           </div>
+          {persona.contributors.length < 2 && (
+            <p className="mt-2 text-[11px] text-zhihu-gray text-right">
+              辩论模式需要 ≥ 2 位答主
+            </p>
+          )}
         </div>
       </aside>
 

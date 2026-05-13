@@ -1,4 +1,4 @@
-import type { Author, AuthorSkills, ChatMessage, Persona } from '../types'
+import type { Author, AuthorSkills, ChatMessage, DebateResult, Persona } from '../types'
 
 async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -35,6 +35,12 @@ export const api = {
   chat: (persona: Persona, history: ChatMessage[], question: string) =>
     jsonFetch<{ message: ChatMessage }>('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ persona, history, question })
+      body: JSON.stringify({ persona, history, question, mode: 'collective' })
+    }),
+
+  debate: (persona: Persona, question: string, rounds = 2) =>
+    jsonFetch<{ debate: DebateResult }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ persona, question, mode: 'debate', rounds })
     })
 }

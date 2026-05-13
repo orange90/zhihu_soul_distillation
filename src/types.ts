@@ -30,4 +30,27 @@ export type ChatMessage = {
   role: 'user' | 'assistant'
   content: string
   citations?: Array<{ author_name: string; text: string }>
+  speaker?: string
+  round?: number
+}
+
+export type DebateTurn = {
+  author_id: string
+  author_name: string
+  stance?: string
+  content: string
+}
+
+export type DebateRound = {
+  round: number
+  topic_focus?: string
+  turns: DebateTurn[]
+}
+
+export type DebateResult = {
+  question: string
+  rounds: DebateRound[]
+  consensus: string[]
+  divergences: string[]
+  summary: string
 }

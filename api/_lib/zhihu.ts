@@ -1,24 +1,137 @@
-import { createHmac } from 'node:crypto'
+// 知乎社区 API 封装
+// 鉴权机制：AK/SK + HMAC-SHA256 签名（参考 https://www.zhihu.com/ring/moltbook 快速开始）
+// 待签名串：app_key:{app_key}|ts:{ts}|logid:{log_id}|extra_info:{extra_info}
+// 签名：HMAC-SHA256(待签名串, app_secret) -> Base64
+// 必填请求头：X-App-Key, X-Timestamp, X-Log-Id, X-Sign, X-Extra-Info
+import { createHmac, randomUUID } from 'crypto'
 
-const OPENAPI_BASE = process.env.ZHIHU_OPENAPI_BASE_URL || 'https://openapi.zhihu.com'
-const AGENT_BASE = process.env.LLM_BASE_URL || process.env.ZHIHU_AGENT_BASE_URL || 'https://api.zhihu.com'
+const OAUTH_BASE = process.env.ZHIHU_OAUTH_BASE_URL || 'https://www.zhihu.com'
+const OPENAPI_BASE = (process.env.ZHIHU_OPENAPI_BASE_URL || 'https://openapi.zhihu.com').replace(/\/$/, '')
 
-function buildHmacHeaders(): Record<string, string> {
-  const appKey = process.env.ZHIHU_APP_KEY || ''
-  const appSecret = process.env.ZHIHU_APP_SECRET || ''
-  if (!appKey || !appSecret) return {}
-  const ts = Math.floor(Date.now() / 1000).toString()
-  const logId = `request_${Date.now()}`
-  const extraInfo = ''
-  const signStr = `app_key:${appKey}|ts:${ts}|logid:${logId}|extra_info:${extraInfo}`
-  const signature = createHmac('sha256', appSecret).update(signStr).digest('base64')
+function getAppKey(): string {
+  return (process.env.ZHIHU_APP_KEY || process.env.ZHIHU_CLIENT_ID || '').trim()
+}
+function getAppSecret(): string {
+  return (
+    process.env.ZHIHU_APP_SECRET ||
+    process.env.ZHIHU_CLIENT_SECRET ||
+    ''
+  ).trim()
+}
+
+export type SignedHeaders = {
+  'X-App-Key': string
+  'X-Timestamp': string
+  'X-Log-Id': string
+  'X-Sign': string
+  'X-Extra-Info': string
+}
+
+export function signRequest(extraInfo = ''): SignedHeaders {
+  const appKey = getAppKey()
+  const appSecret = getAppSecret()
+  if (!appKey || !appSecret) {
+    throw new Error('ZHIHU_APP_KEY / ZHIHU_APP_SECRET 未配置')
+  }
+  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const logId = `request_${Date.now()}_${randomUUID().replace(/-/g, '').slice(0, 12)}`
+  const signStr = `app_key:${appKey}|ts:${timestamp}|logid:${logId}|extra_info:${extraInfo}`
+  const sign = createHmac('sha256', appSecret).update(signStr).digest('base64')
   return {
     'X-App-Key': appKey,
-    'X-Timestamp': ts,
+    'X-Timestamp': timestamp,
     'X-Log-Id': logId,
-    'X-Sign': signature,
-    'X-Extra-Info': extraInfo,
+    'X-Sign': sign,
+    'X-Extra-Info': extraInfo
   }
+}
+
+export type ZhihuFetchOptions = {
+  method?: string
+  query?: Record<string, string | number | undefined>
+  body?: any
+  extraInfo?: string
+  headers?: Record<string, string>
+}
+
+export async function zhihuFetch<T = any>(
+  path: string,
+  opts: ZhihuFetchOptions = {}
+): Promise<{ status: number; ok: boolean; data: T | null; raw: string; headers: SignedHeaders }> {
+  const { method = 'GET', query, body, extraInfo = '', headers = {} } = opts
+  const url = new URL(path.startsWith('http') ? path : OPENAPI_BASE + (path.startsWith('/') ? path : '/' + path))
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
+    }
+  }
+  const signed = signRequest(extraInfo)
+  const finalHeaders: Record<string, string> = {
+    Accept: 'application/json',
+    ...signed,
+    ...headers
+  }
+  let payload: any
+  if (body !== undefined && body !== null) {
+    if (typeof body === 'string' || body instanceof URLSearchParams) {
+      payload = body as any
+    } else {
+      payload = JSON.stringify(body)
+      finalHeaders['Content-Type'] = finalHeaders['Content-Type'] || 'application/json'
+    }
+  }
+  const res = await fetch(url.toString(), { method, headers: finalHeaders, body: payload })
+  const raw = await res.text()
+  let data: any = null
+  try {
+    data = raw ? JSON.parse(raw) : null
+  } catch {
+    data = null
+  }
+  return { status: res.status, ok: res.ok, data, raw, headers: signed }
+}
+
+export type ZhihuRingInfo = {
+  ring_id: string
+  ring_name: string
+  ring_desc?: string
+  ring_avatar?: string
+  membership_num?: number
+  discussion_num?: number
+}
+
+export type ZhihuRingPin = {
+  pin_id: number | string
+  content?: string
+  author_name?: string
+  publish_time?: number
+  upvote_num?: number
+  comment_num?: number
+  share_num?: number
+  fav_num?: number
+}
+
+export type ZhihuRingDetail = {
+  ring_info: ZhihuRingInfo
+  contents: ZhihuRingPin[]
+}
+
+export async function getRingDetail(
+  ringId: string,
+  opts: { pageNum?: number; pageSize?: number } = {}
+): Promise<ZhihuRingDetail> {
+  const { pageNum = 1, pageSize = 20 } = opts
+  const res = await zhihuFetch<{ status: number; msg: string; data: ZhihuRingDetail }>(
+    '/openapi/ring/detail',
+    { query: { ring_id: ringId, page_num: pageNum, page_size: pageSize } }
+  )
+  if (!res.ok || !res.data) {
+    throw new Error(`getRingDetail failed: HTTP ${res.status} ${res.raw.slice(0, 200)}`)
+  }
+  if (res.data.status !== 0) {
+    throw new Error(`getRingDetail business error: ${JSON.stringify(res.data).slice(0, 200)}`)
+  }
+  return res.data.data
 }
 
 export type ZhihuUser = {
@@ -122,12 +235,11 @@ export type ZhihuSearchAnswer = {
 }
 
 export async function searchByAuthor(authorName: string, top = 10): Promise<ZhihuSearchAnswer[]> {
-  const path = `/api/v1/content/zhihu_search`
-  const url = `${OPENAPI_BASE}${path}?query=${encodeURIComponent(authorName)}&limit=${top}`
-  const headers = buildHmacHeaders()
-  const res = await fetch(url, { headers })
+  const res = await zhihuFetch<any>('/api/v1/content/zhihu_search', {
+    query: { query: authorName, limit: top }
+  })
   if (!res.ok) throw new Error(`search failed for ${authorName}: ${res.status}`)
-  const j: any = await res.json()
+  const j: any = res.data || {}
   const items: any[] = j.data || j.results || j.list || []
   return items.slice(0, top).map((it) => ({
     title: it.title || it.question?.title || '',
@@ -141,16 +253,20 @@ export async function searchByAuthor(authorName: string, top = 10): Promise<Zhih
 export type ChatTurn = { role: 'system' | 'user' | 'assistant'; content: string }
 
 export async function chatCompletion(messages: ChatTurn[], opts: { temperature?: number } = {}) {
-  const token = process.env.LLM_API_KEY || process.env.ZHIHU_AGENT_TOKEN || ''
-  const model = process.env.LLM_MODEL || undefined
-  const res = await fetch(`${AGENT_BASE}/chat/completions`, {
+  const apiKey = (process.env.LLM_API_KEY || '').trim()
+  const baseUrl = (process.env.LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')
+  const model = (process.env.LLM_MODEL || 'gpt-3.5-turbo').trim()
+  if (!apiKey) {
+    throw new Error('LLM_API_KEY 未配置')
+  }
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      ...(model ? { model } : {}),
+      model,
       messages,
       temperature: opts.temperature ?? 0.5,
       stream: false

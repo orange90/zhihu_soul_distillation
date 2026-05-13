@@ -48,7 +48,11 @@ export default function SelectPage() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-zhihu-ink">挑选你的知识圈成员</h1>
-          <p className="text-sm text-gray-500 mt-1">从你的关注列表中最多选择 {MAX} 人，他们将共同组成你的集体智慧体。</p>
+          <p className="text-sm text-gray-500 mt-1">
+            最多选择 {MAX} 人。选 1 人可生成集体人格，
+            <span className="text-zhihu-blue font-medium">≥ 2 人</span>
+            还能解锁「互相辩论」模式。
+          </p>
         </div>
         <div className="text-sm">
           <span className="text-zhihu-gray">已选</span>
@@ -122,7 +126,14 @@ export default function SelectPage() {
         </div>
       )}
 
-      <div className="sticky bottom-4 mt-10 flex justify-end">
+      <div className="sticky bottom-4 mt-10 flex items-center justify-end gap-3">
+        {selectedList.length > 0 && (
+          <span className="text-xs text-zhihu-gray">
+            {selectedList.length >= 2
+              ? '可解锁「集体人格对话」+「互相辩论」'
+              : '当前仅可生成集体人格，再选 1 人即可解锁辩论'}
+          </span>
+        )}
         <button className="btn-primary shadow-lg" disabled={selectedList.length === 0} onClick={submit}>
           开始蒸馏 {selectedList.length > 0 && `（${selectedList.length} 人）`}
         </button>
