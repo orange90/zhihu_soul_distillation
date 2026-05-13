@@ -1,0 +1,16 @@
+node_modules
+dist
+.vercel
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+
+*.tsbuildinfo
+
+.vscode/
+.idea/
+*.swp
+
+
