@@ -11,21 +11,9 @@ const PRESET_TOPICS = [
   '专精还是广博，哪条路更值得走？'
 ]
 
-const PALETTE = [
-  'bg-blue-50 border-blue-200 text-blue-900',
-  'bg-amber-50 border-amber-200 text-amber-900',
-  'bg-emerald-50 border-emerald-200 text-emerald-900',
-  'bg-rose-50 border-rose-200 text-rose-900',
-  'bg-violet-50 border-violet-200 text-violet-900'
-]
-
-const AVATAR_PALETTE = [
-  'bg-blue-500',
-  'bg-amber-500',
-  'bg-emerald-500',
-  'bg-rose-500',
-  'bg-violet-500'
-]
+const BUBBLE_STYLE = 'bg-sky-50 border-sky-300 text-sky-900'
+const AVATAR_BG = 'bg-sky-500'
+const RING_COLOR = 'ring-sky-300'
 
 export default function DebatePage() {
   const navigate = useNavigate()
@@ -45,16 +33,15 @@ export default function DebatePage() {
     setPersona(p)
   }, [navigate])
 
-  const colorMap = useMemo(() => {
-    const m = new Map<string, { bubble: string; avatar: string; avatarUrl?: string }>()
+  const authorMap = useMemo(() => {
+    const m = new Map<string, { index: number; avatarUrl?: string }>()
     if (!persona) return m
     const fallbackAvatars = new Map(
       (getJSON<Author[]>('selectedAuthors') || []).map((a) => [a.id, a.avatar_url])
     )
     persona.contributors.forEach((c, i) => {
       m.set(c.author_id, {
-        bubble: PALETTE[i % PALETTE.length],
-        avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
+        index: i,
         avatarUrl: c.avatar_url || fallbackAvatars.get(c.author_id)
       })
     })
@@ -200,7 +187,7 @@ export default function DebatePage() {
 
           {debate.rounds.map((r) => (
             <section key={r.round}>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 mb-4">
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-zhihu-blue text-white text-xs font-semibold">
                   {r.round}
                 </span>
@@ -210,36 +197,43 @@ export default function DebatePage() {
                 <div className="flex-1 border-t border-gray-100" />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-5">
                 {r.turns.map((t, i) => {
-                  const c = colorMap.get(t.author_id) || {
-                    bubble: PALETTE[i % PALETTE.length],
-                    avatar: AVATAR_PALETTE[i % AVATAR_PALETTE.length],
-                    avatarUrl: undefined
-                  }
+                  const info = authorMap.get(t.author_id)
+                  const idx = info?.index ?? i
+                  const isLeft = idx % 2 === 0
+
+                  const avatar = info?.avatarUrl ? (
+                    <img
+                      src={info.avatarUrl}
+                      alt={t.author_name}
+                      className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${RING_COLOR}`}
+                    />
+                  ) : (
+                    <span
+                      className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-xs font-bold shrink-0 ${AVATAR_BG}`}
+                    >
+                      {t.author_name.slice(0, 1)}
+                    </span>
+                  )
+
                   return (
                     <div
                       key={`${r.round}-${t.author_id}-${i}`}
-                      className={`rounded-2xl border p-4 ${c.bubble}`}
+                      className={`flex items-start gap-3 ${isLeft ? '' : 'flex-row-reverse'}`}
                     >
-                      <div className="flex items-center gap-2">
-                        {c.avatarUrl ? (
-                          <img
-                            src={c.avatarUrl}
-                            alt={t.author_name}
-                            className="w-7 h-7 rounded-full object-cover shrink-0"
-                          />
-                        ) : (
-                          <span
-                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-semibold ${c.avatar}`}
-                          >
-                            {t.author_name.slice(0, 1)}
-                          </span>
-                        )}
-                        <span className="text-sm font-semibold">{t.author_name}</span>
-                      </div>
-                      <div className="mt-2 text-sm leading-relaxed">
-                        <Markdown content={t.content} tone="light" />
+                      {avatar}
+                      <div className={`max-w-[75%] ${isLeft ? '' : 'text-right'}`}>
+                        <div className={`flex items-center gap-2 mb-1 ${isLeft ? '' : 'justify-end'}`}>
+                          <span className="text-sm font-semibold text-zhihu-ink">{t.author_name}</span>
+                        </div>
+                        <div
+                          className={`relative rounded-2xl border-2 px-4 py-3 text-left ${BUBBLE_STYLE}`}
+                        >
+                          <div className="text-sm leading-relaxed">
+                            <Markdown content={t.content} tone="light" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )

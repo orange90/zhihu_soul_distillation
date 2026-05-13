@@ -58,7 +58,7 @@ vercel.json                  Vercel 部署配置
    - `ZHIHU_APP_ID` / `ZHIHU_OAUTH_APP_KEY`：知乎开放平台 OAuth 凭证
    - `ZHIHU_APP_KEY` / `ZHIHU_APP_SECRET`：HMAC-SHA256 签名鉴权（旧 HMAC 接入）
    - `ZHIHU_REDIRECT_URI`：OAuth 回调（本地：`http://localhost:3000/api/auth/callback`）
-   - `ZHIHU_AGENT_TOKEN`：知乎直答 Agent Token
+   - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：OpenAI 兼容大模型配置
    - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`：Supabase 服务端凭证
    - `SESSION_SECRET`：任意强随机串，用于签名 Session Cookie
 
