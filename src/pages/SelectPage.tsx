@@ -14,12 +14,37 @@ export default function SelectPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [loadingHint, setLoadingHint] = useState('正在拉取你的关注列表…')
+  const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
+    const startedAt = Date.now()
+    const tick = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+
+    const hints: { at: number; text: string }[] = [
+      { at: 4, text: '关注的人较多，正在分批加载，请稍候…' },
+      { at: 10, text: '马上就好，知乎接口偶尔慢一点，再等一下…' },
+      { at: 20, text: '仍在加载中，建议保持网络畅通，不要关闭页面…' }
+    ]
+    const timers = hints.map((h) =>
+      setTimeout(() => setLoadingHint(h.text), h.at * 1000)
+    )
+
     api
       .following()
       .then((r) => setAuthors(r.authors))
       .catch((e) => setError(String(e.message || e)))
+      .finally(() => {
+        clearInterval(tick)
+        timers.forEach(clearTimeout)
+      })
+
+    return () => {
+      clearInterval(tick)
+      timers.forEach(clearTimeout)
+    }
   }, [])
 
   const selectedList = useMemo(
@@ -203,11 +228,33 @@ export default function SelectPage() {
       )}
 
       {!authors && !error && (
-        <div className="mt-6 grid md:grid-cols-2 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="card p-4 h-20 animate-pulse bg-gray-50" />
-          ))}
-        </div>
+        <>
+          <div
+            className="mt-6 card p-4 flex items-center gap-3 border-zhihu-blue/30 bg-zhihu-blue-light/40"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="inline-block w-5 h-5 rounded-full border-2 border-zhihu-blue border-t-transparent animate-spin shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-zhihu-ink">
+                {loadingHint}
+                <span className="ml-1 inline-flex w-4 text-zhihu-blue/70">
+                  <span className="animate-pulse">.</span>
+                  <span className="animate-pulse [animation-delay:200ms]">.</span>
+                  <span className="animate-pulse [animation-delay:400ms]">.</span>
+                </span>
+              </div>
+              <div className="text-xs text-zhihu-gray mt-0.5">
+                关注的人越多，加载越久（已等待 {elapsed}s），首次加载通常需要几秒到十几秒。
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid md:grid-cols-2 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card p-4 h-20 animate-pulse bg-gray-50" />
+            ))}
+          </div>
+        </>
       )}
 
       {authors && authors.length === 0 && (

@@ -204,16 +204,22 @@ export type ZhihuFollowingItem = {
 
 export async function fetchFollowing(
   accessToken: string,
-  opts: { limit?: number; perPage?: number; maxPages?: number } = {}
+  opts: { limit?: number; perPage?: number; maxPages?: number; throttleAfter?: number; throttleMs?: number } = {}
 ): Promise<ZhihuFollowingItem[]> {
   const perPage = opts.perPage ?? 50
-  const maxTotal = opts.limit ?? 1000
-  const maxPages = opts.maxPages ?? 40
+  const maxTotal = opts.limit ?? Infinity
+  const maxPages = opts.maxPages ?? 1000
+  const throttleAfter = opts.throttleAfter ?? 5000
+  const throttleMs = opts.throttleMs ?? 300
 
   const seen = new Set<string>()
   const out: ZhihuFollowingItem[] = []
 
   for (let page = 0; page < maxPages; page++) {
+    if (page > 0 && out.length >= throttleAfter) {
+      await new Promise((r) => setTimeout(r, throttleMs))
+    }
+
     const res = await fetch(
       `${OPENAPI_BASE}/user/followed?page=${page}&per_page=${perPage}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
