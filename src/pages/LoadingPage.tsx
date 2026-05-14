@@ -200,6 +200,11 @@ export default function LoadingPage() {
           返回重新选择
         </button>
       )}
+
+      <div className="mt-10 text-xs text-gray-400 space-y-1">
+        <p>数据来源于知乎搜索结果，并非直接来源于答主的回答和文章</p>
+        <p>数据存在一定噪声，蒸馏结果仅供参考，请谨慎辨别</p>
+      </div>
     </div>
   )
 }
