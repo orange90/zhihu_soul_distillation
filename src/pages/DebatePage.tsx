@@ -1,9 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { getJSON } from '../lib/storage'
 import type { Author, DebateResult, Persona } from '../types'
 import Markdown from '../components/Markdown'
+
+function AiBadge() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none hover:bg-violet-200 transition whitespace-nowrap"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+          <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+        </svg>
+        AI分身
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 w-48 rounded-lg bg-gray-800 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg">
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-gray-800" />
+          AI生成内容，仅供参考，不代表答主立场
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PRESET_TOPICS = [
   '年轻人该不该 all in AI？',
@@ -226,6 +260,7 @@ export default function DebatePage() {
                       <div className={`max-w-[75%] ${isLeft ? '' : 'text-right'}`}>
                         <div className={`flex items-center gap-2 mb-1 ${isLeft ? '' : 'justify-end'}`}>
                           <span className="text-sm font-semibold text-zhihu-ink">{t.author_name}</span>
+                          <AiBadge />
                         </div>
                         <div
                           className={`relative rounded-2xl border-2 px-4 py-3 text-left ${BUBBLE_STYLE}`}
