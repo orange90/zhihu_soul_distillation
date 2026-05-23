@@ -17,7 +17,7 @@
 ```
 api/                         Vercel Serverless Functions
   _lib/
-    zhihu.ts                 知乎 OAuth / OpenAPI / 搜索 + 通用 LLM Chat 封装
+    zhihu.ts                 知乎 OAuth / 多源搜索（Dev API + OpenAPI + Tavily + v4 充实）+ LLM 封装
     supabase.ts              Supabase 客户端 + 30 天 TTL
     session.ts               HMAC 签名 Cookie Session
     http.ts                  统一 JSON 响应
@@ -58,6 +58,8 @@ vercel.json                  Vercel 部署配置
    - `ZHIHU_APP_ID` / `ZHIHU_OAUTH_APP_KEY`：知乎开放平台 OAuth 凭证
    - `ZHIHU_APP_KEY` / `ZHIHU_APP_SECRET`：HMAC-SHA256 签名鉴权（旧 HMAC 接入）
    - `ZHIHU_REDIRECT_URI`：OAuth 回调（本地：`http://localhost:3000/api/auth/callback`）
+   - `TAVILY_API_KEY`：Tavily 搜索 API（可选，提升答主回答发现率）
+   - `SERP_API_KEY`：SerpAPI 搜索（可选，Tavily 的备选方案）
    - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：OpenAI 兼容大模型配置
    - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`：Supabase 服务端凭证
    - `SESSION_SECRET`：任意强随机串，用于签名 Session Cookie
@@ -92,7 +94,9 @@ vercel.json                  Vercel 部署配置
    ↓
 /api/distill：对每位答主
    - 查 author_skills 是否命中（TTL 30 天）
-   - 未命中 → zhihu_search top 10 → 通用 LLM 提炼 JSON → upsert
+   - 未命中 → 多源搜索（知乎 API + OpenAPI + Tavily/SerpAPI）top 25
+     → 去重 + 作者名边界匹配过滤 → 知乎 v4 API 内容充实
+     → 取 top 8 → 通用 LLM 提炼 JSON → upsert
    ↓
 /api/persona：加权融合 5 人 skills → 生成集体人格 → upsert user_circles
    ↓
