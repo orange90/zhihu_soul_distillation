@@ -7,6 +7,7 @@ import type { AuthorSkills } from './_lib/types.js'
 
 const MAX_AUTHORS = 5
 const SEARCH_TOP = 8
+const SEARCH_FETCH = 25
 const EXCERPT_LIMIT = 2500
 const PROBE_EXCERPT_LIMIT = 800
 const PROBE_TOP = 6
@@ -309,7 +310,7 @@ async function distillOne(
   onStep?.({ step: 'fetch_answers' })
   let answers: ZhihuSearchAnswer[] = []
   try {
-    answers = await searchByAuthor(author.name, SEARCH_TOP)
+    answers = await searchByAuthor(author.name, SEARCH_FETCH)
   } catch (e) {
     console.warn('search failed for', author.name, e)
   }
@@ -320,9 +321,14 @@ async function distillOne(
     (s, a) => s + ((a.content && a.content.length) || (a.excerpt && a.excerpt.length) || 0),
     0
   )
+  const sourceCounts: Record<string, number> = {}
+  for (const a of usableAnswers) {
+    const src = (a as any).source || 'zhihu_search'
+    sourceCounts[src] = (sourceCounts[src] || 0) + 1
+  }
   onStep?.({
     step: 'fetch_answers_done',
-    meta: { count: usableAnswers.length, raw_count: answers.length, chars: totalChars }
+    meta: { count: usableAnswers.length, raw_count: answers.length, chars: totalChars, sources: sourceCounts }
   })
 
   if (usableAnswers.length === 0 || totalChars < 200) {

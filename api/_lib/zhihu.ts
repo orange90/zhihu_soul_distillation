@@ -255,6 +255,8 @@ export async function fetchFollowing(
   return out
 }
 
+export type SearchSource = 'zhihu_search' | 'zhihu_openapi' | 'web_search'
+
 export type ZhihuSearchAnswer = {
   title: string
   excerpt: string
@@ -262,6 +264,7 @@ export type ZhihuSearchAnswer = {
   voteup_count: number
   url?: string
   author_name?: string
+  source?: SearchSource
 }
 
 function stripHtml(html: string): string {
@@ -283,44 +286,344 @@ function stripHtml(html: string): string {
     .trim()
 }
 
-export async function searchByAuthor(authorName: string, top = 10): Promise<ZhihuSearchAnswer[]> {
+// ──────────────── Multi-Source Search ────────────────
+
+type ZhihuDevSearchOpts = { count?: number; offset?: number }
+
+async function searchZhihuDev(
+  query: string,
+  opts: ZhihuDevSearchOpts = {}
+): Promise<ZhihuSearchAnswer[]> {
   const DEVELOPER_BASE = 'https://developer.zhihu.com'
   const appSecret = getAppSecret()
-  if (!appSecret) throw new Error('ZHIHU_APP_SECRET 未配置')
+  if (!appSecret) return []
 
-  const count = Math.min(top, 10)
+  const count = Math.min(opts.count || 10, 10)
   const url = new URL(`${DEVELOPER_BASE}/api/v1/content/zhihu_search`)
-  url.searchParams.set('Query', authorName)
+  url.searchParams.set('Query', query)
   url.searchParams.set('Count', String(count))
+  if (opts.offset) url.searchParams.set('Offset', String(opts.offset))
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'Authorization': `Bearer ${appSecret}`,
-      'X-Request-Timestamp': Math.floor(Date.now() / 1000).toString(),
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    }
-  })
-  if (!res.ok) throw new Error(`search failed for ${authorName}: ${res.status}`)
-  const j: any = await res.json()
-  if (j.Code !== 0) throw new Error(`search error for ${authorName}: ${j.Message || j.Code}`)
-  const items: any[] = j.Data?.Items || []
-
-  const mapped = items.map((it) => {
-    const contentText = stripHtml(String(it.ContentText || ''))
-    return {
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${appSecret}`,
+        'X-Request-Timestamp': Math.floor(Date.now() / 1000).toString(),
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
+    })
+    if (!res.ok) return []
+    const j: any = await res.json()
+    if (j.Code !== 0) return []
+    return (j.Data?.Items || []).map((it: any) => ({
       title: it.Title || '',
-      excerpt: contentText,
-      content: contentText,
+      excerpt: stripHtml(String(it.ContentText || '')),
+      content: stripHtml(String(it.ContentText || '')),
       voteup_count: Number(it.VoteUpCount || 0),
       url: it.Url,
-      author_name: it.AuthorName
+      author_name: it.AuthorName,
+      source: 'zhihu_search' as SearchSource
+    }))
+  } catch {
+    return []
+  }
+}
+
+async function searchViaOpenAPI(keyword: string): Promise<ZhihuSearchAnswer[]> {
+  try {
+    const appKey = getAppKey()
+    const appSecret = getAppSecret()
+    if (!appKey || !appSecret) return []
+
+    const res = await zhihuFetch<any>('/openapi/content/search', {
+      query: { keyword, type: 'answer', page_size: 20 }
+    })
+    if (!res.ok || !res.data) return []
+    const items: any[] =
+      res.data.data?.list || res.data.data?.items ||
+      res.data.list || res.data.items || []
+    if (!Array.isArray(items)) return []
+    return items.map((it: any) => ({
+      title: it.title || it.question_title || '',
+      excerpt: stripHtml(it.content || it.excerpt || ''),
+      content: stripHtml(it.content || it.excerpt || ''),
+      voteup_count: Number(it.voteup_count || it.vote_count || 0),
+      url: it.url || it.share_url || '',
+      author_name: it.author?.name || it.author_name || '',
+      source: 'zhihu_openapi' as SearchSource
+    }))
+  } catch {
+    return []
+  }
+}
+
+function isZhihuContentUrl(url: string): boolean {
+  return /\/question\/\d+\/answer\/\d+/.test(url) || url.includes('zhuanlan.zhihu.com/p/')
+}
+
+function isAuthorMatch(authorName: string, title: string, content: string): boolean {
+  const escaped = authorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const nameRe = new RegExp(`(?:^|[\\s\\-@|·「])${escaped}(?:的回答|的文章|[\\s\\-,，。、：:！!？?」​]|$)`)
+  return nameRe.test(title) || nameRe.test(content)
+}
+
+function cleanZhihuTitle(raw: string, authorName: string): string {
+  return (raw || '')
+    .replace(/\s*-\s*知乎$/, '')
+    .replace(new RegExp(`\\s*-\\s*${authorName}的回答\\s*-\\s*知乎$`), '')
+    .replace(new RegExp(`\\s*-\\s*${authorName}的回答$`), '')
+    .trim()
+}
+
+async function tavilySearch(apiKey: string, authorName: string): Promise<ZhihuSearchAnswer[]> {
+  const queries = [
+    `${authorName}的回答 知乎`,
+    `${authorName} 知乎答主`,
+    `"${authorName}" site:zhihu.com`,
+  ]
+
+  const results = await Promise.allSettled(
+    queries.map((q) =>
+      fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query: q,
+          search_depth: 'advanced',
+          include_domains: ['zhihu.com'],
+          max_results: 10
+        })
+      }).then((r) => r.ok ? r.json() : null)
+    )
+  )
+
+  const all: ZhihuSearchAnswer[] = []
+  for (const r of results) {
+    if (r.status !== 'fulfilled' || !r.value) continue
+    for (const item of (r.value.results || [])) {
+      const url: string = item.url || ''
+      if (!isZhihuContentUrl(url)) continue
+      const title: string = item.title || ''
+      const content: string = item.content || ''
+      if (!isAuthorMatch(authorName, title, content)) continue
+
+      all.push({
+        title: cleanZhihuTitle(title, authorName),
+        excerpt: stripHtml(content),
+        content: stripHtml(content),
+        voteup_count: 0,
+        url,
+        author_name: authorName,
+        source: 'web_search' as SearchSource
+      })
+    }
+  }
+  return all
+}
+
+async function serpSearch(apiKey: string, authorName: string): Promise<ZhihuSearchAnswer[]> {
+  try {
+    const url = new URL('https://serpapi.com/search.json')
+    url.searchParams.set('q', `site:zhihu.com "${authorName}" 回答`)
+    url.searchParams.set('api_key', apiKey)
+    url.searchParams.set('num', '20')
+    const res = await fetch(url.toString())
+    if (!res.ok) return []
+    const j: any = await res.json()
+    return (j.organic_results || [])
+      .filter((r: any) => {
+        const link: string = r.link || ''
+        if (!isZhihuContentUrl(link)) return false
+        return isAuthorMatch(authorName, r.title || '', r.snippet || '')
+      })
+      .map((r: any) => ({
+        title: cleanZhihuTitle(r.title || '', authorName),
+        excerpt: stripHtml(r.snippet || ''),
+        content: stripHtml(r.snippet || ''),
+        voteup_count: 0,
+        url: r.link,
+        author_name: authorName,
+        source: 'web_search' as SearchSource
+      }))
+  } catch {
+    return []
+  }
+}
+
+async function webSearchZhihuAuthor(authorName: string): Promise<ZhihuSearchAnswer[]> {
+  const tavilyKey = (process.env.TAVILY_API_KEY || '').trim()
+  if (tavilyKey) return tavilySearch(tavilyKey, authorName)
+
+  const serpKey = (process.env.SERP_API_KEY || '').trim()
+  if (serpKey) return serpSearch(serpKey, authorName)
+
+  return []
+}
+
+// ──────────────── V4 API Content Enrichment ────────────────
+
+function extractAnswerId(url: string): string | null {
+  const m = url.match(/\/answer\/(\d+)/)
+  return m ? m[1] : null
+}
+
+function extractArticleId(url: string): string | null {
+  const m = url.match(/zhuanlan\.zhihu\.com\/p\/(\d+)/)
+  return m ? m[1] : null
+}
+
+type V4Result = {
+  author_name: string
+  voteup_count: number
+  comment_count: number
+  content: string
+  question_title: string
+}
+
+async function fetchAnswerV4(answerId: string): Promise<V4Result | null> {
+  try {
+    const res = await fetch(
+      `https://www.zhihu.com/api/v4/answers/${answerId}?include=data[*].content,excerpt,voteup_count,comment_count`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 'Accept': 'application/json' } }
+    )
+    if (!res.ok) return null
+    const j: any = await res.json()
+    const raw = j.content || j.excerpt || ''
+    return {
+      author_name: j.author?.name || '',
+      voteup_count: Number(j.voteup_count || 0),
+      comment_count: Number(j.comment_count || 0),
+      content: stripHtml(raw),
+      question_title: j.question?.title || ''
+    }
+  } catch {
+    return null
+  }
+}
+
+async function fetchArticleV4(articleId: string): Promise<V4Result | null> {
+  try {
+    const res = await fetch(
+      `https://www.zhihu.com/api/v4/articles/${articleId}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 'Accept': 'application/json' } }
+    )
+    if (!res.ok) return null
+    const j: any = await res.json()
+    const raw = j.content || j.excerpt || ''
+    return {
+      author_name: j.author?.name || '',
+      voteup_count: Number(j.voteup_count || 0),
+      comment_count: Number(j.comment_count || 0),
+      content: stripHtml(raw),
+      question_title: j.title || ''
+    }
+  } catch {
+    return null
+  }
+}
+
+async function enrichWithV4(items: ZhihuSearchAnswer[], authorName: string): Promise<ZhihuSearchAnswer[]> {
+  const tasks = items.map(async (item) => {
+    const url = item.url || ''
+    const answerId = extractAnswerId(url)
+    const articleId = answerId ? null : extractArticleId(url)
+    if (!answerId && !articleId) return item
+
+    const v4 = answerId
+      ? await fetchAnswerV4(answerId)
+      : await fetchArticleV4(articleId!)
+    if (!v4) return item
+
+    // V4 gives us the real author — verify it matches
+    if (v4.author_name && v4.author_name.trim() !== authorName.trim()) {
+      return null // wrong author, discard
+    }
+
+    return {
+      ...item,
+      author_name: v4.author_name || item.author_name,
+      voteup_count: v4.voteup_count || item.voteup_count,
+      title: v4.question_title || item.title,
+      content: v4.content.length > (item.content?.length || 0) ? v4.content : item.content,
+      excerpt: v4.content.length > (item.excerpt?.length || 0) ? v4.content : item.excerpt,
     } as ZhihuSearchAnswer
   })
 
+  const results = await Promise.allSettled(tasks)
+  return results
+    .filter((r): r is PromiseFulfilledResult<ZhihuSearchAnswer | null> => r.status === 'fulfilled')
+    .map((r) => r.value)
+    .filter((v): v is ZhihuSearchAnswer => v !== null)
+}
+
+// ──────────────── Orchestrator ────────────────
+
+export async function searchByAuthor(authorName: string, top = 10): Promise<ZhihuSearchAnswer[]> {
+  const seenKeys = new Set<string>()
+  const all: ZhihuSearchAnswer[] = []
+
+  const addUnique = (items: ZhihuSearchAnswer[]) => {
+    for (const item of items) {
+      const key = item.url || `${item.title}::${(item.author_name || '').trim()}`
+      if (!key || seenKeys.has(key)) continue
+      seenKeys.add(key)
+      all.push(item)
+    }
+  }
+
+  // Phase 1: Run multiple Zhihu search queries + OpenAPI in parallel
+  const searches = await Promise.allSettled([
+    searchZhihuDev(authorName, { count: 10 }),
+    searchZhihuDev(`${authorName} 回答`, { count: 10 }),
+    searchZhihuDev(`${authorName} 文章`, { count: 10 }),
+    searchZhihuDev(authorName, { count: 10, offset: 10 }),
+    searchViaOpenAPI(authorName),
+  ])
+  for (const r of searches) {
+    if (r.status === 'fulfilled') addUnique(r.value)
+  }
+
+  // Phase 2: Filter by author name
   const normalized = authorName.trim()
-  const exact = mapped.filter((a) => (a.author_name || '').trim() === normalized)
-  const pool = exact.length > 0 ? exact : mapped
+  const exactMatches = all.filter((a) => (a.author_name || '').trim() === normalized)
+
+  // Phase 3: Web search fallback when exact matches are insufficient
+  if (exactMatches.length < 5) {
+    try {
+      const webResults = await webSearchZhihuAuthor(authorName)
+      addUnique(webResults)
+    } catch { /* skip */ }
+  }
+
+  // Phase 4: Enrich thin results (web search / short content) via Zhihu v4 API
+  // Picks items that have a URL but short content — these are web search results
+  const needEnrich = all.filter((a) => a.url && (a.content?.length || 0) < 200)
+  if (needEnrich.length > 0) {
+    try {
+      const enriched = await enrichWithV4(needEnrich, normalized)
+      // Replace original items with enriched versions
+      for (const e of enriched) {
+        const idx = all.findIndex((a) => a.url === e.url)
+        if (idx >= 0) all[idx] = e
+      }
+      // Remove items that were discarded (wrong author)
+      const discardedUrls = new Set(
+        needEnrich
+          .filter((orig) => !enriched.some((e) => e.url === orig.url))
+          .map((a) => a.url)
+      )
+      for (let i = all.length - 1; i >= 0; i--) {
+        if (all[i].url && discardedUrls.has(all[i].url)) all.splice(i, 1)
+      }
+    } catch { /* skip enrichment errors */ }
+  }
+
+  // Final: prefer exact author matches, sort by votes
+  const finalExact = all.filter((a) => (a.author_name || '').trim() === normalized)
+  const pool = finalExact.length >= 3 ? finalExact : all
+  pool.sort((a, b) => (b.voteup_count || 0) - (a.voteup_count || 0))
   return pool.slice(0, top)
 }
 
