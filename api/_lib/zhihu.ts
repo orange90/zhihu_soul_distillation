@@ -395,7 +395,7 @@ async function tavilySearch(apiKey: string, authorName: string): Promise<ZhihuSe
           include_domains: ['zhihu.com'],
           max_results: 10
         })
-      }).then((r) => r.ok ? r.json() : null)
+      }).then((r) => r.ok ? r.json() as Promise<{ results?: any[] }> : null)
     )
   )
 
