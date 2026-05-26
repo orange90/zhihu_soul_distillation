@@ -19,14 +19,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'add') {
-      await supabase.from('opted_out_authors').upsert(
-        { author_id: session.user_id, author_name: session.user_name },
-        { onConflict: 'author_id' }
-      )
-      // Delete cached distillation data so it's not served to other users
-      await supabase.from('author_skills').delete().eq('author_id', session.user_id)
+      const { error: upsertError } = await supabase
+        .from('opted_out_authors')
+        .upsert(
+          { author_id: session.user_id, author_name: session.user_name },
+          { onConflict: 'author_id' }
+        )
+      if (upsertError) {
+        console.error('[optout] upsert failed', upsertError)
+        return json(res, 500, {
+          error: `保存禁止状态失败：${upsertError.message}。请确认 supabase/schema.sql 中的 opted_out_authors 表已在数据库中创建。`
+        })
+      }
+      // Verify the row was actually written before claiming success
+      const { data: verify, error: verifyError } = await supabase
+        .from('opted_out_authors')
+        .select('author_id')
+        .eq('author_id', session.user_id)
+        .maybeSingle()
+      if (verifyError || !verify) {
+        console.error('[optout] verify failed', verifyError)
+        return json(res, 500, {
+          error: '禁止状态写入未生效，请稍后重试或联系管理员检查数据库。'
+        })
+      }
+      // Only after we've confirmed the block is persisted do we drop the cached distillation
+      const { error: deleteError } = await supabase
+        .from('author_skills')
+        .delete()
+        .eq('author_id', session.user_id)
+      if (deleteError) {
+        console.warn('[optout] author_skills cleanup failed', deleteError)
+      }
     } else {
-      await supabase.from('opted_out_authors').delete().eq('author_id', session.user_id)
+      const { error: deleteError } = await supabase
+        .from('opted_out_authors')
+        .delete()
+        .eq('author_id', session.user_id)
+      if (deleteError) {
+        console.error('[optout] delete failed', deleteError)
+        return json(res, 500, { error: `取消禁止失败：${deleteError.message}` })
+      }
     }
 
     return json(res, 200, { opted_out: action === 'add' })

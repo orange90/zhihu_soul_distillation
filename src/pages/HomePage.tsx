@@ -7,6 +7,7 @@ export default function HomePage() {
   const [user, setUser] = useState<{ id: string; name: string; avatar_url?: string; opted_out?: boolean } | null>(null)
   const [loading, setLoading] = useState(true)
   const [optOutLoading, setOptOutLoading] = useState(false)
+  const [optOutError, setOptOutError] = useState<string | null>(null)
 
   useEffect(() => {
     api
@@ -19,12 +20,13 @@ export default function HomePage() {
   const handleOptOutToggle = async () => {
     if (!user) return
     setOptOutLoading(true)
+    setOptOutError(null)
     try {
       const action = user.opted_out ? 'remove' : 'add'
       const result = await api.optout(action)
       setUser((u) => u ? { ...u, opted_out: result.opted_out } : u)
-    } catch {
-      // silently ignore
+    } catch (e: any) {
+      setOptOutError(String(e?.message || e))
     } finally {
       setOptOutLoading(false)
     }
@@ -56,7 +58,7 @@ export default function HomePage() {
           也可以让他们就同一个话题<span className="text-zhihu-blue font-medium">互相辩论</span>，呈现共识与分歧。
         </p>
 
-        <div className="mt-10 flex items-center justify-center gap-3">
+        <div className="mt-10 flex items-center justify-center gap-3 flex-wrap">
           {loading ? (
             <div className="h-11 w-40 rounded-full bg-gray-100 animate-pulse" />
           ) : user ? (
@@ -84,6 +86,18 @@ export default function HomePage() {
             </a>
           )}
         </div>
+        {user && !loading && (
+          <div className="mt-4 text-xs text-gray-500">
+            {user.opted_out
+              ? '当前状态：你已禁止其他用户（包括自己）将你蒸馏为 AI 分身。'
+              : '当前状态：允许其他用户将你蒸馏为 AI 分身。'}
+          </div>
+        )}
+        {optOutError && (
+          <div className="mt-3 mx-auto max-w-md text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            操作失败：{optOutError}
+          </div>
+        )}
       </div>
 
       <div className="relative mt-16 grid md:grid-cols-3 gap-4">

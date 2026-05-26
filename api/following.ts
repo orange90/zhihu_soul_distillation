@@ -27,7 +27,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = getSupabase()
     let optedOutIds = new Set<string>()
     if (supabase) {
-      const { data } = await supabase.from('opted_out_authors').select('author_id')
+      const { data, error } = await supabase.from('opted_out_authors').select('author_id')
+      if (error) {
+        console.error('[following] opted_out lookup failed', error)
+      }
       optedOutIds = new Set((data ?? []).map((r: any) => String(r.author_id)))
     }
 

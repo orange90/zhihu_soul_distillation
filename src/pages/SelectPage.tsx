@@ -96,6 +96,8 @@ export default function SelectPage() {
       if (next.has(id)) {
         next.delete(id)
       } else {
+        const author = (authors ?? []).find((a) => a.id === id)
+        if (author?.opted_out) return prev
         if (next.size >= MAX) return prev
         next.add(id)
       }
@@ -280,16 +282,23 @@ export default function SelectPage() {
           {pagedAuthors.map((a) => {
             const isOn = selected.has(a.id)
             const isOptedOut = !!a.opted_out
-            const disabled = !isOn && selected.size >= MAX
+            const disabled = isOptedOut || (!isOn && selected.size >= MAX)
+            const title = isOptedOut
+              ? '该答主已设置禁止被蒸馏，无法选中'
+              : disabled
+                ? `已达 ${MAX} 人上限`
+                : undefined
             return (
               <button
                 key={a.id}
                 disabled={disabled}
+                title={title}
                 onClick={() => toggle(a.id)}
                 className={[
                   'card text-left p-4 flex items-center gap-3 transition-all',
                   isOn ? 'ring-2 ring-zhihu-blue border-zhihu-blue' : 'hover:border-zhihu-blue/50',
-                  disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                  isOptedOut ? 'bg-amber-50/40 border-amber-200' : ''
                 ].join(' ')}
               >
                 <div className="w-10 h-10 rounded-full bg-zhihu-blue-light overflow-hidden flex items-center justify-center text-zhihu-blue font-semibold">
@@ -300,9 +309,16 @@ export default function SelectPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{a.name}</div>
+                  <div className="font-medium truncate flex items-center gap-1.5">
+                    <span className="truncate">{a.name}</span>
+                    {isOptedOut && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-normal">
+                        已禁止被蒸馏
+                      </span>
+                    )}
+                  </div>
                   {isOptedOut ? (
-                    <div className="text-xs text-amber-600 truncate">此答主已设置禁止被蒸馏，选择后将被跳过</div>
+                    <div className="text-xs text-amber-600 truncate">该答主已设置禁止被蒸馏，无法选中</div>
                   ) : (
                     <div className="text-xs text-zhihu-gray truncate">{a.headline || '知乎答主'}</div>
                   )}
