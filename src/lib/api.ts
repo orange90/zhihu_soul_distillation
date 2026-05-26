@@ -8,7 +8,14 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`API ${url} failed: ${res.status} ${text}`)
+    let serverMsg = ''
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed && typeof parsed.error === 'string') serverMsg = parsed.error
+    } catch {
+      // fall through to raw text
+    }
+    throw new Error(serverMsg || `API ${url} failed: ${res.status} ${text}`)
   }
   return (await res.json()) as T
 }

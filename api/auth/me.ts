@@ -10,11 +10,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let opted_out = false
   const supabase = getSupabase()
   if (supabase) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('opted_out_authors')
       .select('author_id')
       .eq('author_id', s.user_id)
       .maybeSingle()
+    if (error) {
+      console.error('[auth/me] opted_out lookup failed', error)
+    }
     opted_out = !!data
   }
 

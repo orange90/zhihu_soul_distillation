@@ -264,11 +264,14 @@ async function distillOne(
   const supabase = getSupabase()
 
   if (supabase) {
-    const { data: blocked } = await supabase
+    const { data: blocked, error: blockedError } = await supabase
       .from('opted_out_authors')
       .select('author_id')
       .eq('author_id', author.id)
       .maybeSingle()
+    if (blockedError) {
+      console.error('[distill] opted_out lookup failed', blockedError)
+    }
     if (blocked) {
       throw Object.assign(
         new Error(`此答主已设置禁止被蒸馏，已为你跳过`),
