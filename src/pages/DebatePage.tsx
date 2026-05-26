@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { getJSON } from '../lib/storage'
@@ -6,36 +6,16 @@ import type { Author, DebateResult, Persona } from '../types'
 import Markdown from '../components/Markdown'
 
 function AiBadge() {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
   return (
-    <div ref={ref} className="relative inline-flex">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none hover:bg-violet-200 transition whitespace-nowrap"
-      >
-        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
-          <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
-        </svg>
-        AI分身
-      </button>
-      {open && (
-        <div className="absolute z-50 top-full mt-1 left-1/2 -translate-x-1/2 w-48 rounded-lg bg-gray-800 text-white text-[11px] leading-relaxed px-3 py-2 shadow-lg">
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-gray-800" />
-          AI生成内容，仅供参考，不代表答主立场
-        </div>
-      )}
-    </div>
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none whitespace-nowrap"
+      title="AI 生成内容，仅供参考，不代表答主立场"
+    >
+      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+        <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+      </svg>
+      AI 分身 · 非本人立场
+    </span>
   )
 }
 
@@ -121,8 +101,17 @@ export default function DebatePage() {
         </div>
       </div>
 
+      <div className="mt-4 rounded-lg bg-violet-50 border border-violet-200 px-4 py-2.5 text-[12px] text-violet-700 leading-relaxed flex items-start gap-2">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 shrink-0 mt-0.5">
+          <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+        </svg>
+        <span>
+          以下辩论由 <strong>AI 分身</strong> 仅模拟生成，<strong>非答主本人立场</strong>，仅供参考。
+        </span>
+      </div>
+
       {/* 出题区 */}
-      <div className="card mt-6 p-5">
+      <div className="card mt-4 p-5">
         <div className="text-sm font-medium text-zhihu-ink">出一道辩题</div>
         <div className="mt-3 flex flex-wrap gap-2">
           {PRESET_TOPICS.map((t) => (
@@ -212,7 +201,7 @@ export default function DebatePage() {
       {debate && (
         <div className="mt-8 space-y-8">
           <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-2 text-[11px] text-amber-700 leading-relaxed">
-            免责声明：本回答仅根据答主的蒸馏结果模拟答题，并非答主本人真实观点。
+            免责声明：本回答由 AI 根据答主的蒸馏结果模拟生成，<strong>并非答主本人真实观点</strong>。
           </div>
           <div className="card p-5">
             <div className="text-xs text-zhihu-gray">本场辩题</div>
@@ -268,6 +257,12 @@ export default function DebatePage() {
                           <div className="text-sm leading-relaxed">
                             <Markdown content={t.content} tone="light" />
                           </div>
+                          <div className="mt-2 pt-1.5 border-t border-sky-200/60 text-[10px] text-violet-600/80 flex items-center gap-1">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 shrink-0">
+                              <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+                            </svg>
+                            仅模拟，非答主本人立场
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -279,7 +274,10 @@ export default function DebatePage() {
 
           {/* 主持人总结 */}
           <section className="card p-5">
-            <div className="text-xs text-zhihu-gray">主持人总结</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-zhihu-gray">主持人总结</div>
+              <AiBadge />
+            </div>
             <div className="mt-2 text-sm">
               <Markdown content={debate.summary} tone="light" />
             </div>
