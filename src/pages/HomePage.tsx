@@ -4,8 +4,9 @@ import { api } from '../lib/api'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const [user, setUser] = useState<{ id: string; name: string; avatar_url?: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; name: string; avatar_url?: string; opted_out?: boolean } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [optOutLoading, setOptOutLoading] = useState(false)
 
   useEffect(() => {
     api
@@ -14,6 +15,20 @@ export default function HomePage() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
   }, [])
+
+  const handleOptOutToggle = async () => {
+    if (!user) return
+    setOptOutLoading(true)
+    try {
+      const action = user.opted_out ? 'remove' : 'add'
+      const result = await api.optout(action)
+      setUser((u) => u ? { ...u, opted_out: result.opted_out } : u)
+    } catch {
+      // silently ignore
+    } finally {
+      setOptOutLoading(false)
+    }
+  }
 
   return (
     <div className="relative max-w-3xl mx-auto px-4 py-16">
@@ -45,9 +60,24 @@ export default function HomePage() {
           {loading ? (
             <div className="h-11 w-40 rounded-full bg-gray-100 animate-pulse" />
           ) : user ? (
-            <button className="btn-primary" onClick={() => navigate('/select')}>
-              开始蒸馏
-            </button>
+            <>
+              <button className="btn-primary" onClick={() => navigate('/select')}>
+                开始蒸馏
+              </button>
+              <button
+                className={[
+                  'px-4 py-2.5 rounded-full border text-sm font-medium transition',
+                  user.opted_out
+                    ? 'border-green-400 text-green-700 bg-green-50 hover:bg-green-100'
+                    : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                ].join(' ')}
+                onClick={handleOptOutToggle}
+                disabled={optOutLoading}
+                title={user.opted_out ? '点击取消，允许其他用户蒸馏你' : '点击后，其他用户将无法蒸馏你'}
+              >
+                {optOutLoading ? '处理中…' : user.opted_out ? '已禁止被蒸馏 ✓' : '禁止自己被蒸馏'}
+              </button>
+            </>
           ) : (
             <a className="btn-primary" href={api.loginUrl()}>
               使用知乎账号登录

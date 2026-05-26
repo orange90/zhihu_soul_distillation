@@ -263,6 +263,21 @@ async function distillOne(
 ): Promise<{ skills: AuthorSkills; fromCache: boolean }> {
   const supabase = getSupabase()
 
+  if (supabase) {
+    const { data: blocked } = await supabase
+      .from('opted_out_authors')
+      .select('author_id')
+      .eq('author_id', author.id)
+      .maybeSingle()
+    if (blocked) {
+      onStep?.({ step: 'failed', meta: { reason: 'opted_out' } })
+      throw Object.assign(
+        new Error(`答主「${author.name}」已申请停止蒸馏`),
+        { code: 'OPTED_OUT' }
+      )
+    }
+  }
+
   if (supabase && !opts.force) {
     const { data } = await supabase
       .from('author_skills')

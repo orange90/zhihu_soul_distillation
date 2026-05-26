@@ -4,6 +4,7 @@ export type Author = {
   headline?: string
   avatar_url?: string
   follower_count?: number
+  opted_out?: boolean
 }
 
 export type AuthorSkills = {

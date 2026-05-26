@@ -27,3 +27,9 @@ create table if not exists user_circles (
   persona     jsonb,
   created_at  timestamptz not null default now()
 );
+
+create table if not exists opted_out_authors (
+  author_id   text primary key,
+  author_name text not null,
+  created_at  timestamptz not null default now()
+);
