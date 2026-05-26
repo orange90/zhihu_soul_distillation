@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { json, serverError, unauthorized } from './_lib/http.js'
 import { readSession } from './_lib/session.js'
+import { getSupabase } from './_lib/supabase.js'
 import { fetchFollowing, type ZhihuFollowingItem } from './_lib/zhihu.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,7 +24,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       authors.push(item)
     }
 
-    return json(res, 200, { authors })
+    const supabase = getSupabase()
+    let optedOutIds = new Set<string>()
+    if (supabase) {
+      const { data } = await supabase.from('opted_out_authors').select('author_id')
+      optedOutIds = new Set((data ?? []).map((r: any) => String(r.author_id)))
+    }
+
+    const tagged = authors.map((a) => ({ ...a, opted_out: optedOutIds.has(a.id) }))
+    return json(res, 200, { authors: tagged })
   } catch (err) {
     return serverError(res, err)
   }
