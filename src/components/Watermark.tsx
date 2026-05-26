@@ -19,10 +19,10 @@ interface WatermarkProps {
  */
 export default function Watermark({
   text = 'AI 生成 · 非答主本人立场',
-  tileWidth = 320,
-  tileHeight = 140,
-  fontSize = 18,
-  color = 'rgba(124,58,237,0.16)',
+  tileWidth = 240,
+  tileHeight = 110,
+  fontSize = 16,
+  color = 'rgba(124,58,237,0.28)',
   rotate = -22,
   className = ''
 }: WatermarkProps) {

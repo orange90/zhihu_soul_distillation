@@ -266,10 +266,10 @@ export default function DebatePage() {
                         >
                           <Watermark
                             text="AI 仅模拟"
-                            tileWidth={180}
-                            tileHeight={90}
-                            fontSize={14}
-                            color="rgba(124,58,237,0.16)"
+                            tileWidth={140}
+                            tileHeight={70}
+                            fontSize={13}
+                            color="rgba(124,58,237,0.30)"
                           />
                           <div className="relative text-sm leading-relaxed">
                             <Markdown content={t.content} tone="light" />
@@ -293,10 +293,10 @@ export default function DebatePage() {
           <section className="card p-5 relative overflow-hidden">
             <Watermark
               text="AI 生成 · 仅供参考"
-              tileWidth={300}
-              tileHeight={140}
-              fontSize={18}
-              color="rgba(124,58,237,0.10)"
+              tileWidth={240}
+              tileHeight={110}
+              fontSize={16}
+              color="rgba(124,58,237,0.22)"
             />
             <div className="relative">
             <div className="flex items-center justify-between gap-2 flex-wrap">

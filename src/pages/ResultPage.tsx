@@ -187,10 +187,10 @@ export default function ResultPage() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-thin px-5 py-4 space-y-4 relative">
             <Watermark
               text="AI 生成 · 非答主本人立场"
-              tileWidth={340}
-              tileHeight={150}
-              fontSize={18}
-              color="rgba(124,58,237,0.10)"
+              tileWidth={260}
+              tileHeight={120}
+              fontSize={16}
+              color="rgba(124,58,237,0.22)"
             />
             <div className="relative space-y-4 flex flex-col">
             {messages.length === 0 && (
@@ -223,10 +223,10 @@ export default function ResultPage() {
                   {m.role === 'assistant' && (
                     <Watermark
                       text="AI 生成"
-                      tileWidth={180}
-                      tileHeight={90}
-                      fontSize={14}
-                      color="rgba(124,58,237,0.13)"
+                      tileWidth={140}
+                      tileHeight={70}
+                      fontSize={13}
+                      color="rgba(124,58,237,0.28)"
                     />
                   )}
                   {m.role === 'assistant' ? (
