@@ -60,7 +60,18 @@ export default function ResultPage() {
       {/* 人格卡片 */}
       <aside className="lg:col-span-2">
         <div className="card p-6 sticky top-20">
-          <div className="text-xs text-zhihu-gray">你的知识圈是一个</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-zhihu-gray">你的知识圈是一个</div>
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none"
+              title="本卡片由 AI 根据答主公开内容蒸馏生成，不代表答主本人立场"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+                <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+              </svg>
+              AI 生成
+            </span>
+          </div>
           <h2 className="mt-1 text-2xl font-bold text-zhihu-ink leading-snug">
             <span className="text-zhihu-blue">{persona.dominant_style}</span>
             <span className="text-zhihu-ink"> 的人</span>
@@ -68,9 +79,15 @@ export default function ResultPage() {
           {persona.headline && (
             <p className="mt-3 text-sm text-gray-600 leading-relaxed">{persona.headline}</p>
           )}
+          <p className="mt-3 text-[11px] text-violet-600/80 leading-relaxed">
+            AI 生成，不代表答主本人立场
+          </p>
 
           <div className="mt-6">
-            <div className="text-xs text-zhihu-gray mb-2">代表性集体观点</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-zhihu-gray">代表性集体观点</span>
+              <span className="text-[10px] text-violet-500/80">· AI 蒸馏</span>
+            </div>
             <ul className="space-y-2">
               {persona.collective_views.map((v, i) => (
                 <li key={i} className="text-sm text-zhihu-ink leading-relaxed flex gap-2">
@@ -142,11 +159,20 @@ export default function ResultPage() {
       {/* 对话框 */}
       <section className="lg:col-span-3">
         <div className="card flex flex-col h-[70vh]">
-          <div className="px-5 py-3 border-b border-gray-100 text-sm font-medium">
-            与你的知识圈集体智慧体对话
+          <div className="px-5 py-3 border-b border-gray-100 text-sm font-medium flex items-center justify-between gap-2">
+            <span>与你的知识圈集体智慧体对话</span>
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none"
+              title="AI 生成内容，仅供参考，不代表答主立场"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+                <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+              </svg>
+              AI 生成
+            </span>
           </div>
           <div className="px-5 py-2 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-700 leading-relaxed">
-            免责声明：本回答仅根据答主的蒸馏结果模拟答题，并非答主本人真实观点。
+            免责声明：本回答由 AI 根据答主的蒸馏结果模拟生成，并非答主本人真实观点。
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-thin px-5 py-4 space-y-4">
@@ -191,6 +217,14 @@ export default function ResultPage() {
                           {j < m.citations!.length - 1 ? '、' : ''}
                         </span>
                       ))}
+                    </div>
+                  )}
+                  {m.role === 'assistant' && (
+                    <div className="mt-2 pt-1.5 border-t border-gray-200/60 text-[10px] text-violet-500/80 flex items-center gap-1">
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 shrink-0">
+                        <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
+                      </svg>
+                      AI 生成，不代表答主本人立场
                     </div>
                   )}
                 </div>
