@@ -4,17 +4,24 @@ import { api } from '../lib/api'
 import { getJSON } from '../lib/storage'
 import type { Author, DebateResult, Persona } from '../types'
 import Markdown from '../components/Markdown'
+import Watermark from '../components/Watermark'
 
-function AiBadge() {
+function AiBadge({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const cls =
+    size === 'lg'
+      ? 'px-3 py-1 text-sm'
+      : size === 'sm'
+      ? 'px-2 py-0.5 text-[11px]'
+      : 'px-2.5 py-1 text-xs'
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-medium leading-none whitespace-nowrap"
+      className={`inline-flex items-center gap-1.5 ${cls} rounded-full bg-violet-600 text-white font-bold leading-none whitespace-nowrap shadow-sm`}
       title="AI 生成内容，仅供参考，不代表答主立场"
     >
-      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 shrink-0">
+      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
         <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
       </svg>
-      AI 分身 · 非本人立场
+      AI 分身 · 非答主本人立场
     </span>
   )
 }
@@ -101,12 +108,12 @@ export default function DebatePage() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg bg-violet-50 border border-violet-200 px-4 py-2.5 text-[12px] text-violet-700 leading-relaxed flex items-start gap-2">
-        <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 shrink-0 mt-0.5">
+      <div className="mt-4 rounded-lg bg-violet-600 text-white px-4 py-3 text-base leading-relaxed flex items-start gap-3 shadow-md">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-6 h-6 shrink-0 mt-0.5">
           <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
         </svg>
         <span>
-          以下辩论由 <strong>AI 分身</strong> 仅模拟生成，<strong>非答主本人立场</strong>，仅供参考。
+          以下辩论由 <strong className="underline decoration-white/70 underline-offset-2">AI 分身仅模拟生成</strong>，<strong className="underline decoration-white/70 underline-offset-2">并非答主本人真实立场</strong>，仅供参考娱乐。
         </span>
       </div>
 
@@ -200,8 +207,11 @@ export default function DebatePage() {
       {/* 辩论结果 */}
       {debate && (
         <div className="mt-8 space-y-8">
-          <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-2 text-[11px] text-amber-700 leading-relaxed">
-            免责声明：本回答由 AI 根据答主的蒸馏结果模拟生成，<strong>并非答主本人真实观点</strong>。
+          <div className="rounded-lg bg-amber-50 border-2 border-amber-300 px-4 py-3 text-sm text-amber-800 font-medium leading-relaxed flex items-start gap-2">
+            <span className="text-lg leading-none mt-0.5">⚠</span>
+            <span>
+              <strong>免责声明：</strong>本辩论由 <strong>AI</strong> 根据答主蒸馏结果模拟生成，<strong className="underline decoration-amber-500">并非答主本人真实观点</strong>。
+            </span>
           </div>
           <div className="card p-5">
             <div className="text-xs text-zhihu-gray">本场辩题</div>
@@ -247,21 +257,28 @@ export default function DebatePage() {
                     >
                       {avatar}
                       <div className={`max-w-[75%] ${isLeft ? '' : 'text-right'}`}>
-                        <div className={`flex items-center gap-2 mb-1 ${isLeft ? '' : 'justify-end'}`}>
+                        <div className={`flex items-center gap-2 mb-1.5 flex-wrap ${isLeft ? '' : 'justify-end'}`}>
                           <span className="text-sm font-semibold text-zhihu-ink">{t.author_name}</span>
                           <AiBadge />
                         </div>
                         <div
-                          className={`relative rounded-2xl border-2 px-4 py-3 text-left ${BUBBLE_STYLE}`}
+                          className={`relative rounded-2xl border-2 px-4 py-3 text-left overflow-hidden ${BUBBLE_STYLE}`}
                         >
-                          <div className="text-sm leading-relaxed">
+                          <Watermark
+                            text="AI 仅模拟"
+                            tileWidth={180}
+                            tileHeight={90}
+                            fontSize={14}
+                            color="rgba(124,58,237,0.16)"
+                          />
+                          <div className="relative text-sm leading-relaxed">
                             <Markdown content={t.content} tone="light" />
                           </div>
-                          <div className="mt-2 pt-1.5 border-t border-sky-200/60 text-[10px] text-violet-600/80 flex items-center gap-1">
-                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 shrink-0">
+                          <div className="relative mt-2 pt-2 border-t border-violet-300/60 text-xs text-violet-700 font-bold flex items-center gap-1.5">
+                            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
                               <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5v.382a2 2 0 0 0-1 1.732V7h7V5.614a2 2 0 0 0-1-1.732V3.5A2.5 2.5 0 0 0 8 1ZM5.5 8v1a2.5 2.5 0 0 0 5 0V8h-5ZM3 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H6v1.5a.5.5 0 0 1-1 0V13H3.5a.5.5 0 0 1-.5-.5Z" />
                             </svg>
-                            仅模拟，非答主本人立场
+                            仅 AI 模拟 · 非答主本人立场
                           </div>
                         </div>
                       </div>
@@ -273,10 +290,18 @@ export default function DebatePage() {
           ))}
 
           {/* 主持人总结 */}
-          <section className="card p-5">
-            <div className="flex items-center justify-between gap-2">
+          <section className="card p-5 relative overflow-hidden">
+            <Watermark
+              text="AI 生成 · 仅供参考"
+              tileWidth={300}
+              tileHeight={140}
+              fontSize={18}
+              color="rgba(124,58,237,0.10)"
+            />
+            <div className="relative">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="text-xs text-zhihu-gray">主持人总结</div>
-              <AiBadge />
+              <AiBadge size="lg" />
             </div>
             <div className="mt-2 text-sm">
               <Markdown content={debate.summary} tone="light" />
@@ -313,6 +338,7 @@ export default function DebatePage() {
                   </ul>
                 )}
               </div>
+            </div>
             </div>
           </section>
         </div>
