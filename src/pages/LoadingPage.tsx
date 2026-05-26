@@ -11,6 +11,7 @@ type AuthorStatus =
   | 'generating_skills'
   | 'cached'
   | 'done'
+  | 'opted_out'
   | 'failed'
 
 type AuthorProgress = {
@@ -25,6 +26,7 @@ const STATUS_LABEL: Record<AuthorStatus, string> = {
   generating_skills: '生成 skills 中',
   cached: '答主已被蒸馏过，已为你召唤出来',
   done: '蒸馏完成',
+  opted_out: '此答主已设置禁止被蒸馏，已为你跳过',
   failed: '蒸馏失败'
 }
 
@@ -35,6 +37,7 @@ const STATUS_COLOR: Record<AuthorStatus, string> = {
   generating_skills: 'text-zhihu-blue',
   cached: 'text-emerald-600',
   done: 'text-emerald-600',
+  opted_out: 'text-amber-600',
   failed: 'text-red-500'
 }
 
@@ -112,7 +115,9 @@ export default function LoadingPage() {
             return
           }
           if (evt.type === 'author_error') {
-            updateStatus(evt.author_id, 'failed')
+            completed += 1
+            updateStatus(evt.author_id, evt.code === 'OPTED_OUT' ? 'opted_out' : 'failed')
+            setProgress(Math.round((completed / total) * 70))
             return
           }
         })

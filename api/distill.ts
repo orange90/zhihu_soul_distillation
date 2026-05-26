@@ -270,9 +270,8 @@ async function distillOne(
       .eq('author_id', author.id)
       .maybeSingle()
     if (blocked) {
-      onStep?.({ step: 'failed', meta: { reason: 'opted_out' } })
       throw Object.assign(
-        new Error(`答主「${author.name}」已申请停止蒸馏`),
+        new Error(`此答主已设置禁止被蒸馏，已为你跳过`),
         { code: 'OPTED_OUT' }
       )
     }
@@ -508,8 +507,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             send('author_done', { author_id: a.id, fromCache, skills: s })
           } catch (e: any) {
             const message = String(e?.message || e)
+            const code = e?.code
             errors.push({ author_id: a.id, message })
-            send('author_error', { author_id: a.id, message })
+            send('author_error', { author_id: a.id, message, code })
             // 不再 throw：单个答主失败不应中断整个批次，其他答主继续蒸馏并落库
           }
         }

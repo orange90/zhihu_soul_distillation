@@ -27,7 +27,7 @@ export type DistillStreamEvent =
   | { type: 'author_start'; author_id: string; index: number; total: number }
   | { type: 'step'; author_id: string; step: DistillStepName; meta?: Record<string, any> }
   | { type: 'author_done'; author_id: string; fromCache: boolean; skills: AuthorSkills }
-  | { type: 'author_error'; author_id: string; message: string }
+  | { type: 'author_error'; author_id: string; message: string; code?: string }
   | { type: 'done'; skills: AuthorSkills[]; cacheHits: Record<string, boolean> }
   | { type: 'error'; message: string }
 
