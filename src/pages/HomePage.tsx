@@ -348,7 +348,55 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="relative mt-16 grid md:grid-cols-3 gap-4">
+      {/* Game Modes */}
+      {user && (
+        <div className="relative mt-12 mb-2">
+          <div className="text-center text-sm font-medium text-gray-500 mb-4">探索更多玩法</div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <button
+              onClick={() => navigate('/my-distillations')}
+              className="card p-5 text-left hover:border-zhihu-blue hover:shadow-md transition-all group"
+            >
+              <div className="text-2xl mb-2">🧪</div>
+              <div className="font-semibold text-zhihu-ink group-hover:text-zhihu-blue">我的蒸馏</div>
+              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
+                管理你的回答素材，开始蒸馏你的专属 AI 分身，最多保存 10 条
+              </div>
+              {user.upload_count && user.upload_count > 0 ? (
+                <div className="mt-2 text-xs text-zhihu-blue">已上传 {user.upload_count} 条 →</div>
+              ) : null}
+            </button>
+
+            <button
+              onClick={() => navigate('/arena')}
+              className="card p-5 text-left hover:border-blue-400 hover:shadow-md transition-all group relative overflow-hidden"
+            >
+              <div className="absolute top-2 right-2 text-[10px] text-white bg-blue-500 rounded-full px-2 py-0.5">NEW</div>
+              <div className="text-2xl mb-2">⚔️</div>
+              <div className="font-semibold text-zhihu-ink group-hover:text-blue-600">新知辩论场</div>
+              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
+                用你的数字分身参加辩论赛，5 个议题覆盖人文科技，赢了得积分
+              </div>
+              <div className="mt-2 text-xs text-blue-500">本周辩题已更新 →</div>
+            </button>
+
+            <button
+              onClick={() => navigate('/bar')}
+              className="card p-5 text-left hover:border-amber-400 hover:shadow-md transition-all group relative overflow-hidden"
+            >
+              <div className="absolute top-2 right-2 text-[10px] text-white bg-amber-500 rounded-full px-2 py-0.5">NEW</div>
+              <div className="text-2xl mb-2">🍺</div>
+              <div className="font-semibold text-zhihu-ink group-hover:text-amber-700">学术酒吧</div>
+              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
+                每天 8 点，数字分身齐聚酒吧，围绕当日科技热点展开讨论
+              </div>
+              <div className="mt-2 text-xs text-amber-600">今晚 8 点准时开张 →</div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="relative mt-10 grid md:grid-cols-3 gap-4">
         {[
           {
             t: '1. 选择最多 5 位',

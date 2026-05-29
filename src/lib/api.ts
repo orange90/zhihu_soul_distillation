@@ -173,5 +173,76 @@ export const api = {
     jsonFetch<{ debate: DebateResult }>('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ persona, question, mode: 'debate', rounds })
-    })
+    }),
+
+  myDistillations: () => jsonFetch<{
+    answers: Array<{
+      answer_id: string; title: string; excerpt: string
+      voteup_count: number; url: string; kind: string; created_at: string
+    }>
+    total: number; max_answers: number
+    distillation_result: {
+      rating: string; rating_score: number; skill_desc: string
+      skill_markdown: string; answer_count: number; distill_count: number
+      last_distilled_at: string
+    } | null
+    daily_distill_count: number; daily_distill_max: number
+  }>('/api/my-distillations'),
+
+  deleteAnswers: (answerIds: string[]) =>
+    jsonFetch<{ deleted: number; remaining: number }>('/api/my-distillations', {
+      method: 'DELETE',
+      body: JSON.stringify({ answer_ids: answerIds })
+    }),
+
+  distillSelf: () =>
+    jsonFetch<{
+      skill_markdown: string; skill_desc: string
+      rating: string; rating_score: number; rating_reason: string
+      answer_count: number; distill_count: number
+    }>('/api/distill-self', { method: 'POST' }),
+
+  arena: {
+    list: () => jsonFetch<{
+      topics: Array<{
+        id: string; category: string; title: string
+        affirmative_view: string; negative_view: string
+        week_key: string; status: string; winner: string | null; ai_judgement: string | null
+        participants: Array<{ user_id: string; user_name: string; user_avatar: string; side: string; debater_pos: number }>
+        aff_count: number; neg_count: number
+      }>
+      week_key: string
+    }>('/api/arena'),
+
+    getTopic: (topicId: string) => jsonFetch<{
+      topic: any; participants: any[]
+    }>(`/api/arena?topicId=${topicId}`),
+
+    join: (topicId: string, side: 'affirmative' | 'negative') =>
+      jsonFetch<{ joined: boolean; side: string; debater_pos: number; total_participants: number }>(
+        '/api/arena', { method: 'POST', body: JSON.stringify({ action: 'join', topic_id: topicId, side }) }
+      )
+  },
+
+  bar: {
+    get: () => jsonFetch<{
+      topic: { id: string; topic: string; date_key: string; status: string; ai_summary: string | null } | null
+      sessions: Array<{
+        user_id: string; user_name: string; user_avatar: string
+        table_num: number; seat_num: number; speech: string | null; generated_at: string | null
+      }>
+      total_seats: number; is_active: boolean; is_published: boolean
+    }>('/api/bar'),
+
+    join: () => jsonFetch<{ joined: boolean; table_num: number; seat_num: number }>(
+      '/api/bar', { method: 'POST', body: JSON.stringify({ action: 'join' }) }
+    )
+  },
+
+  leaderboard: () => jsonFetch<{
+    scores: Array<{
+      user_id: string; user_name: string; user_avatar: string | null; score: number; rank: number
+    }>
+    week_key: string; my_rank: number | null
+  }>('/api/leaderboard')
 }
