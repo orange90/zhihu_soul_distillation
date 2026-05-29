@@ -136,8 +136,8 @@ export const api = {
 
   pluginToken: () =>
     jsonFetch<{ token: string; user: { id: string; name: string; avatar_url?: string } }>(
-      '/api/auth/plugin-token',
-      { method: 'POST' }
+      '/api/auth/me',
+      { method: 'POST', body: JSON.stringify({ action: 'plugin-token' }) }
     ),
   optout: (action: 'add' | 'remove') =>
     jsonFetch<{ opted_out: boolean }>('/api/optout', {
@@ -145,7 +145,7 @@ export const api = {
       body: JSON.stringify({ action })
     }),
   loginUrl: () => '/api/auth/login',
-  logout: () => jsonFetch('/api/auth/logout', { method: 'POST' }),
+  logout: () => jsonFetch('/api/auth/me', { method: 'POST', body: JSON.stringify({ action: 'logout' }) }),
 
   following: () => jsonFetch<{ authors: Author[] }>('/api/following'),
 
@@ -200,7 +200,7 @@ export const api = {
       skill_markdown: string; skill_desc: string
       rating: string; rating_score: number; rating_reason: string
       answer_count: number; distill_count: number
-    }>('/api/distill-self', { method: 'POST' }),
+    }>('/api/my-distillations', { method: 'POST' }),
 
   arena: {
     list: () => jsonFetch<{
@@ -244,5 +244,5 @@ export const api = {
       user_id: string; user_name: string; user_avatar: string | null; score: number; rank: number
     }>
     week_key: string; my_rank: number | null
-  }>('/api/leaderboard')
+  }>('/api/arena?action=leaderboard')
 }

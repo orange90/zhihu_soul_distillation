@@ -236,7 +236,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const weekKey = getWeekKey()
 
     if (req.method === 'GET') {
-      const { topicId } = req.query as Record<string, string>
+      const { topicId, action } = req.query as Record<string, string>
+
+      // Leaderboard (merged from leaderboard.ts)
+      if (action === 'leaderboard') {
+        const session = readSession(req)
+        const { data: scores } = await supabase
+          .from('user_scores')
+          .select('user_id, user_name, user_avatar, score, updated_at')
+          .eq('week_key', weekKey)
+          .order('score', { ascending: false })
+          .limit(50)
+        const ranked = (scores || []).map((s: any, i: number) => ({ ...s, rank: i + 1 }))
+        const my_rank = session
+          ? (ranked.findIndex((r: any) => r.user_id === session.user_id) + 1) || null
+          : null
+        return json(res, 200, { scores: ranked, week_key: weekKey, my_rank })
+      }
 
       if (topicId) {
         // Get specific topic
