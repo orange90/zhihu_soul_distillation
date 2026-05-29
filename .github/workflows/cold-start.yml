@@ -1,0 +1,36 @@
+name: Cold Start Bar & Arena
+
+# 冷启动定时触发：在固定时间点访问生产环境 API，触发服务端的「路人数字分身」补位逻辑，
+# 解决冷启动阶段没有真实用户、场子冷清的问题。即使没有访客打开页面，也能准时开场。
+#
+#   - 19:50 CST（11:50 UTC）：学术酒吧补位（不足 6 人则补「路过进来看看的」分身）
+#   - 20:00 CST（12:00 UTC）：酒吧 8 点开聊 + 辩论场补位开辩（正反方补「爱吵架的路人」至各 3 人）
+#
+# 需要配置：
+#   Settings > Secrets and variables > Actions > Variables
+#   添加变量 PRODUCTION_URL = https://your-domain.com （结尾不要带斜杠）
+
+on:
+  schedule:
+    - cron: '50 11 * * *'   # 19:50 CST - 学术酒吧补位
+    - cron: '0 12 * * *'    # 20:00 CST - 酒吧开聊 + 辩论场补位开辩
+  workflow_dispatch:
+
+jobs:
+  cold-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger bar & arena cold start
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "::error::PRODUCTION_URL is not set. Go to Settings > Variables > Actions and add PRODUCTION_URL=https://your-domain.com"
+            exit 1
+          fi
+
+          echo "Triggering academic bar cold start..."
+          curl -sL -o /dev/null -w "bar: %{http_code}\n" "${PRODUCTION_URL}/api/bar"
+
+          echo "Triggering debate arena cold start..."
+          curl -sL -o /dev/null -w "arena: %{http_code}\n" "${PRODUCTION_URL}/api/arena"
