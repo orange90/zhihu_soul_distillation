@@ -196,6 +196,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!supabase) return json(res, 503, { error: 'DB 未配置' })
 
     if (req.method === 'GET') {
+      // Return list of all past bar topics
+      if (req.query.history === '1') {
+        const { data } = await supabase
+          .from('bar_topics')
+          .select('id, topic, date_key, status, ai_summary')
+          .order('date_key', { ascending: false })
+          .limit(30)
+        return json(res, 200, { topics: data || [] })
+      }
+
+      // Return a specific date's full session data
+      const dateParam = req.query.date
+      if (typeof dateParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        const { data: topicData } = await supabase
+          .from('bar_topics')
+          .select('*')
+          .eq('date_key', dateParam)
+          .maybeSingle()
+        if (!topicData) return json(res, 404, { error: '该日期暂无记录' })
+        const { data: sessions } = await supabase
+          .from('bar_sessions')
+          .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
+          .eq('topic_id', topicData.id)
+          .order('table_num').order('seat_num')
+        return json(res, 200, {
+          topic: topicData,
+          sessions: sessions || [],
+          total_seats: MAX_TOTAL,
+          is_active: false,
+          is_published: true
+        })
+      }
+
       const topic = await ensureTodayTopic(supabase)
 
       if (!topic) {

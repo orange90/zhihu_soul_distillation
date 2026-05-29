@@ -158,6 +158,21 @@ create table if not exists bar_sessions (
 );
 create index if not exists idx_bar_sessions_topic on bar_sessions (topic_id);
 
+-- ============================================================
+-- Part 4: Debate History (圆桌辩论记录)
+-- ============================================================
+
+create table if not exists debate_history (
+  id           uuid default gen_random_uuid() primary key,
+  user_id      text not null,
+  question     text not null,
+  author_ids   text[] not null,
+  author_names text[] not null,
+  result       jsonb not null,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_debate_history_user on debate_history (user_id, created_at desc);
+
 -- Helper function to adjust arena score by a delta (positive or negative)
 -- Win: +2, Loss: -1
 create or replace function increment_score(p_user_id text, p_week_key text)

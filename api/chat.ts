@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { badRequest, json, readBody, serverError, unauthorized } from './_lib/http.js'
 import { readSession } from './_lib/session.js'
+import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson, type ChatTurn } from './_lib/zhihu.js'
 import type {
   AuthorSkills,
@@ -232,7 +233,8 @@ async function handleDebate(
   res: VercelResponse,
   persona: Persona,
   question: string,
-  roundsCount: number
+  roundsCount: number,
+  userId?: string
 ) {
   const contributors = persona.contributors.slice(0, 5)
   if (contributors.length < 2) {
@@ -262,6 +264,24 @@ async function handleDebate(
     divergences,
     summary
   }
+
+  if (userId) {
+    const supabase = getSupabase()
+    if (supabase) {
+      const authorIds = contributors.map(c => c.author_id)
+      const authorNames = contributors.map(c => c.author_name)
+      supabase.from('debate_history').insert({
+        user_id: userId,
+        question,
+        author_ids: authorIds,
+        author_names: authorNames,
+        result
+      }).then(({ error }) => {
+        if (error) console.warn('[debate] failed to save history', error.message)
+      })
+    }
+  }
+
   return json(res, 200, { debate: result })
 }
 
@@ -284,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (mode === 'debate') {
       const roundsCount = Math.min(Math.max(Number(body.rounds) || 2, 1), 3)
-      return await handleDebate(res, body.persona, body.question.trim(), roundsCount)
+      return await handleDebate(res, body.persona, body.question.trim(), roundsCount, session.user_id)
     }
 
     const turns: ChatTurn[] = [

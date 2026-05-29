@@ -12,6 +12,11 @@ type BarTopic = {
   id: string; topic: string; date_key: string; status: string; ai_summary: string | null
 }
 
+type HistoricalBarData = {
+  topic: BarTopic
+  sessions: BarSession[]
+}
+
 function Avatar({ url, name, size = 10 }: { url?: string | null; name: string; size?: number }) {
   const cls = `rounded-full object-cover border-2 border-blue-600 shadow-md`
   const style = { width: `${size * 4}px`, height: `${size * 4}px` }
@@ -166,6 +171,12 @@ export default function BarPage() {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [mySession, setMySession] = useState<BarSession | null>(null)
 
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyTopics, setHistoryTopics] = useState<BarTopic[]>([])
+  const [historicalView, setHistoricalView] = useState<HistoricalBarData | null>(null)
+  const [historicalLoading, setHistoricalLoading] = useState(false)
+
   // Playback state
   const [currentSpeakerIdx, setCurrentSpeakerIdx] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -218,6 +229,33 @@ export default function BarPage() {
 
   const activeSession = speechSessions[currentSpeakerIdx] || null
   const activeSpeech = activeSession?.speech || null
+
+  const openHistory = async () => {
+    setShowHistory(true)
+    if (historyTopics.length > 0) return
+    setHistoryLoading(true)
+    try {
+      const data = await api.bar.history()
+      setHistoryTopics(data.topics)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const loadHistoricalBar = async (date: string) => {
+    setHistoricalLoading(true)
+    try {
+      const data = await api.bar.getByDate(date)
+      setHistoricalView({ topic: data.topic, sessions: data.sessions })
+      setShowHistory(false)
+    } catch (e: any) {
+      console.error(e)
+    } finally {
+      setHistoricalLoading(false)
+    }
+  }
 
   const handleJoin = async () => {
     setJoining(true)
@@ -296,7 +334,100 @@ export default function BarPage() {
             <h1 className="text-2xl font-bold text-white">🍺 学术酒吧</h1>
             <div className="text-xs text-blue-300/60 mt-0.5">与你的数字分身一起，品酒论道</div>
           </div>
+          <button
+            onClick={openHistory}
+            className="ml-auto text-sm px-4 py-1.5 rounded-full border border-blue-300/30 text-blue-300/80 hover:text-blue-200 hover:border-blue-300/60 hover:bg-blue-300/10 transition-colors"
+          >
+            历史记录
+          </button>
         </div>
+
+        {/* 历史记录抽屉 */}
+        {showHistory && (
+          <div className="fixed inset-0 flex justify-end" style={{ zIndex: 100 }}>
+            <div className="flex-1 bg-black/60" onClick={() => setShowHistory(false)} />
+            <div className="w-80 h-full shadow-2xl overflow-y-auto flex flex-col"
+              style={{ background: 'rgba(10,15,40,0.97)', borderLeft: '1px solid rgba(96,165,250,0.2)' }}>
+              <div className="px-4 py-3 border-b border-blue-400/20 flex items-center justify-between sticky top-0"
+                style={{ background: 'rgba(10,15,40,0.97)' }}>
+                <h3 className="font-semibold text-white">历史记录</h3>
+                <button onClick={() => setShowHistory(false)} className="text-blue-300/60 hover:text-blue-200 text-xl leading-none">✕</button>
+              </div>
+              {historyLoading ? (
+                <div className="flex-1 flex items-center justify-center text-sm text-blue-300/50">加载中…</div>
+              ) : historyTopics.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-sm text-blue-300/50 p-6 text-center">
+                  <span className="text-3xl">🍺</span>
+                  <span>还没有历史记录</span>
+                </div>
+              ) : (
+                <div className="flex-1 p-3 space-y-2">
+                  {historyTopics.map(ht => (
+                    <button
+                      key={ht.id}
+                      className="w-full text-left p-3 rounded-xl border border-white/10 hover:border-blue-400/40 hover:bg-white/5 transition-colors"
+                      onClick={() => loadHistoricalBar(ht.date_key)}
+                    >
+                      <div className="text-[11px] text-blue-300/50">{ht.date_key}</div>
+                      <div className="text-sm text-white mt-0.5 line-clamp-2">{ht.topic}</div>
+                      <div className={`text-[11px] mt-1 ${ht.status === 'completed' ? 'text-green-400/80' : 'text-amber-400/80'}`}>
+                        {ht.status === 'completed' ? '✓ 已结束' : ht.status === 'active' ? '🔴 进行中' : '待开始'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 历史某天的详情弹窗 */}
+        {historicalView && (
+          <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 md:p-8" style={{ zIndex: 100, background: 'rgba(0,0,0,0.75)' }}>
+            <div className="w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#0a0a1a,#0d1b3e,#111827)' }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <div>
+                  <div className="text-blue-300/60 text-xs">{historicalView.topic.date_key} · 学术酒吧</div>
+                  <h2 className="text-white font-bold mt-0.5">{historicalView.topic.topic}</h2>
+                </div>
+                <button onClick={() => setHistoricalView(null)} className="text-blue-300/60 hover:text-white text-2xl">×</button>
+              </div>
+              <div className="p-5 space-y-4">
+                {historicalView.sessions.filter(s => s.speech).map((s) => (
+                  <div key={s.user_id} className="rounded-xl p-4 bg-white/5 border border-white/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Avatar url={s.user_avatar} name={s.user_name} size={6} />
+                      <span className="text-white/80 text-sm font-medium">{s.user_name}</span>
+                      <span className="text-white/40 text-xs">吧台{s.table_num}</span>
+                      <span className="text-white/30 text-lg">🍺</span>
+                    </div>
+                    <p className="text-white/70 text-sm leading-relaxed pl-8">{s.speech}</p>
+                  </div>
+                ))}
+                {historicalView.topic.ai_summary && (
+                  <div className="rounded-2xl p-4 border border-blue-400/20" style={{ background: 'rgba(30,58,138,0.3)' }}>
+                    <div className="text-blue-300 text-sm font-medium mb-2 flex items-center gap-2">
+                      <span>🤖</span> AI 摘要
+                    </div>
+                    <p className="text-white/80 text-sm leading-relaxed">{historicalView.topic.ai_summary}</p>
+                  </div>
+                )}
+                {historicalView.sessions.filter(s => s.speech).length === 0 && (
+                  <div className="text-center py-8 text-blue-300/50 text-sm">该场次暂无发言记录</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {historicalLoading && (
+          <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 100, background: 'rgba(0,0,0,0.5)' }}>
+            <div className="bg-blue-950 rounded-2xl p-6 text-center border border-blue-400/20">
+              <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <div className="text-blue-300 text-sm">加载历史记录…</div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center py-20 text-blue-300/60">加载中…</div>

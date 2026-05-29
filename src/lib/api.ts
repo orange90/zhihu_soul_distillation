@@ -175,6 +175,17 @@ export const api = {
       body: JSON.stringify({ persona, question, mode: 'debate', rounds })
     }),
 
+  debateHistory: () =>
+    jsonFetch<{
+      records: Array<{
+        id: string
+        question: string
+        author_names: string[]
+        result: DebateResult
+        created_at: string
+      }>
+    }>('/api/debate-history'),
+
   myDistillations: () => jsonFetch<{
     answers: Array<{
       answer_id: string; title: string; excerpt: string
@@ -258,7 +269,22 @@ export const api = {
 
     join: () => jsonFetch<{ joined: boolean; table_num: number; seat_num: number }>(
       '/api/bar', { method: 'POST', body: JSON.stringify({ action: 'join' }) }
-    )
+    ),
+
+    history: () => jsonFetch<{
+      topics: Array<{
+        id: string; topic: string; date_key: string; status: string; ai_summary: string | null
+      }>
+    }>('/api/bar?history=1'),
+
+    getByDate: (date: string) => jsonFetch<{
+      topic: { id: string; topic: string; date_key: string; status: string; ai_summary: string | null }
+      sessions: Array<{
+        user_id: string; user_name: string; user_avatar: string
+        table_num: number; seat_num: number; speech: string | null; generated_at: string | null
+      }>
+      total_seats: number; is_active: boolean; is_published: boolean
+    }>(`/api/bar?date=${date}`)
   },
 
   leaderboard: () => jsonFetch<{
