@@ -5,10 +5,14 @@ import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
 import { barBotPersona, isBotUserId, makeBarBot } from './_lib/bots.js'
 
+// Vercel：一次请求最多生成「一批」发言，控制在函数最大时长内即可。
+export const maxDuration = 60
+
 const MAX_TABLES = 4
 const SEATS_PER_TABLE = 6
 const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 24
 const COLD_START_MIN = 6 // 冷启动最少参与人数：8 点开聊前至少要凑够 6 人
+const BAR_BATCH = 4 // 每次推进最多生成的发言数，保证单次请求在函数最大时长内完成
 
 const FALLBACK_TOPICS = [
   'AI 大模型是否正在取代人类的创造力？',
@@ -157,32 +161,87 @@ async function ensureTodayTopic(supabase: any): Promise<any> {
   return created
 }
 
-async function generateSpeeches(supabase: any, topicId: string) {
-  const { data: topic } = await supabase.from('bar_topics').select('*').eq('id', topicId).single()
-  if (!topic) throw new Error('Topic not found')
+// 全员发言完毕后，生成 AI 摘要并把讨论标记为已结束。
+// 用「条件更新（status != completed）」抢占，确保并发下只结算一次。
+async function finalizeBar(
+  supabase: any,
+  topic: any,
+  spoken: Array<{ user_name: string; speech: string }>
+): Promise<void> {
+  let summary = ''
+  try {
+    const summaryPrompt = `以下是学术酒吧关于「${topic.topic}」的讨论发言：
 
-  const { data: sessions } = await supabase
+${spoken.map((s, i) => `${i + 1}. ${s.user_name}：${s.speech}`).join('\n\n')}
+
+请生成一段200字以内的AI摘要，总结这场讨论的主要观点、共识与分歧，语气轻松学术。`
+    const summaryResult = await chatCompletion(
+      [{ role: 'user', content: summaryPrompt }],
+      { temperature: 0.6, timeoutMs: 40_000 }
+    )
+    summary = (summaryResult.content || '').trim().slice(0, 500)
+  } catch (e) {
+    console.error('[bar] summary failed', e)
+  }
+  await supabase.from('bar_topics')
+    .update({ status: 'completed', ai_summary: summary || null })
+    .eq('id', topic.id)
+    .neq('status', 'completed')
+}
+
+// 推进学术酒吧讨论「一步」：为下一批已就坐但未发言的吧友生成发言并落库；
+// 全员发言完毕后生成 AI 摘要并结束。可重复调用、可断点续传（以是否已有 speech 为进度依据），
+// 适配 serverless 无后台任务的限制——由前端轮询触发，每次只做一批，保证在函数最大时长内完成。
+async function advanceBar(supabase: any, topicId: string): Promise<void> {
+  const { data: topic } = await supabase.from('bar_topics').select('*').eq('id', topicId).single()
+  if (!topic || topic.status === 'completed') return
+
+  const { data: allSessions } = await supabase
     .from('bar_sessions')
-    .select('user_id, user_name, user_avatar, table_num, seat_num')
+    .select('user_id, user_name, user_avatar, table_num, seat_num, speech')
     .eq('topic_id', topicId)
-    .is('speech', null)
     .order('table_num').order('seat_num')
 
-  if (!sessions || sessions.length === 0) return
+  const sessions = allSessions || []
+  if (sessions.length === 0) return
 
-  // Get all skills
-  const userIds = sessions.map((s: any) => s.user_id)
+  const pending = sessions.filter((s: any) => !s.speech)
+
+  // 全员发言完毕 → 生成摘要并结束
+  if (pending.length === 0) {
+    if (!topic.ai_summary) {
+      const spoken = sessions
+        .filter((s: any) => s.speech)
+        .map((s: any) => ({ user_name: s.user_name, speech: s.speech }))
+      await finalizeBar(supabase, topic, spoken)
+    } else {
+      await supabase.from('bar_topics')
+        .update({ status: 'completed' })
+        .eq('id', topicId)
+        .neq('status', 'completed')
+    }
+    return
+  }
+
+  const batch = pending.slice(0, BAR_BATCH)
+  const prior = sessions.filter((s: any) => s.speech)
+
+  // 拉取本批发言者的蒸馏画像
+  const userIds = batch.map((s: any) => s.user_id)
   const { data: skills } = await supabase
     .from('user_distillation_results')
     .select('user_id, skill_desc, skill_markdown')
     .in('user_id', userIds)
-
   const skillMap: Record<string, { desc: string; markdown: string }> = {}
   for (const s of (skills || [])) {
     skillMap[s.user_id] = { desc: s.skill_desc || '', markdown: s.skill_markdown || '' }
   }
 
-  const participantList = sessions.map((s: any, i: number) => {
+  const priorText = prior.length > 0
+    ? `\n\n【已有的发言（请承接、避免重复）】\n${prior.map((s: any, i: number) => `${i + 1}. ${s.user_name}：${s.speech}`).join('\n')}`
+    : ''
+
+  const speakerList = batch.map((s: any, i: number) => {
     const skill = skillMap[s.user_id]
     const style = isBotUserId(s.user_id)
       ? barBotPersona()
@@ -192,21 +251,19 @@ async function generateSpeeches(supabase: any, topicId: string) {
 
   const prompt = `今天学术酒吧的议题是：「${topic.topic}」
 
-参与者（按发言顺序）：
-${participantList}
+请按顺序为以下参与者各生成一段发言（100-300字）：
+${speakerList}
 
-请为每位参与者生成一段发言（100-300字），要求：
+要求：
 1. 基于该参与者的个人风格特点
 2. 紧扣议题，言之有物
-3. 后面的人可以借鉴前人观点继续深化，也可以提出不同看法
-4. 语气要像在酒吧聊天——轻松但有深度，可以用第一人称
+3. 可以承接前面已有的发言继续深化，也可以提出不同看法
+4. 语气要像在酒吧聊天——轻松但有深度，可以用第一人称${priorText}
 
-注意：所有发言加起来要形成一个有层次的讨论，从多个角度探讨议题。
-
-只输出JSON数组：
+只输出 JSON 数组，长度必须为 ${batch.length}，顺序与上面一致：
 [
-  {"user_id": "用户ID", "speech": "发言内容"},
-  ...
+  {"speech": "第1位的发言"},
+  ... 共 ${batch.length} 条 ...
 ]`
 
   const result = await chatCompletion(
@@ -214,35 +271,20 @@ ${participantList}
       { role: 'system', content: '你是一个学术酒吧的主持人AI，负责模拟每位参与者的发言风格，生成一场有深度有趣味的学术讨论。' },
       { role: 'user', content: prompt }
     ],
-    { temperature: 0.8, timeoutMs: 180_000, maxRetries: 1 }
+    { temperature: 0.8, timeoutMs: 50_000, maxRetries: 1 }
   )
 
-  const speeches = extractFirstJson<Array<{ user_id: string; speech: string }>>(result.content) || []
-
-  // Update speeches in DB
+  const arr = extractFirstJson<Array<{ speech?: string }>>(result.content) || []
   const now = new Date().toISOString()
-  for (const speech of speeches) {
-    await supabase.from('bar_sessions').update({
-      speech: speech.speech,
-      generated_at: now
-    }).eq('topic_id', topicId).eq('user_id', speech.user_id)
-  }
-
-  // Generate AI summary
-  const summaryPrompt = `以下是学术酒吧关于「${topic.topic}」的讨论发言：
-
-${speeches.map((s, i) => `${i + 1}. ${s.speech}`).join('\n\n')}
-
-请生成一段200字以内的AI摘要，总结这场讨论的主要观点、共识与分歧，语气轻松学术。`
-
-  try {
-    const summaryResult = await chatCompletion([{ role: 'user', content: summaryPrompt }], { temperature: 0.6 })
-    await supabase.from('bar_topics').update({
-      status: 'completed',
-      ai_summary: (summaryResult.content || '').trim().slice(0, 500)
-    }).eq('id', topicId)
-  } catch {
-    await supabase.from('bar_topics').update({ status: 'completed' }).eq('id', topicId)
+  for (let i = 0; i < batch.length; i++) {
+    const content = String(arr[i]?.speech || '').trim()
+    if (!content) continue
+    // 仅在该座位仍未发言时写入，保证并发幂等（不覆盖已生成的发言）
+    await supabase.from('bar_sessions')
+      .update({ speech: content, generated_at: now })
+      .eq('topic_id', topicId)
+      .eq('user_id', batch[i].user_id)
+      .is('speech', null)
   }
 }
 
@@ -300,21 +342,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('topic_id', topic.id)
         .order('table_num').order('seat_num')
 
-      // If bar is active (past 8pm) and speeches not generated yet, trigger generation
-      const allSessions = sessions || []
-      const needsGeneration = isBarActive() &&
-        topic.status !== 'completed' &&
-        allSessions.length > 0 &&
-        allSessions.every((s: any) => !s.speech)
+      let finalTopic = topic
+      let finalSessions = sessions || []
 
-      if (needsGeneration) {
-        await supabase.from('bar_topics').update({ status: 'active' }).eq('id', topic.id)
-        generateSpeeches(supabase, topic.id).catch(e => console.error('[bar] speech generation failed', e))
+      // 8 点后讨论进行中：每次拉取时推进一批发言生成（前端轮询驱动，断点续传）。
+      // 不能在响应返回后 fire-and-forget——serverless 会冻结函数，后台任务跑不完。
+      if (isBarActive() && topic.status !== 'completed' && finalSessions.length > 0) {
+        if (topic.status !== 'active') {
+          await supabase.from('bar_topics')
+            .update({ status: 'active' })
+            .eq('id', topic.id)
+            .neq('status', 'completed')
+        }
+        await advanceBar(supabase, topic.id).catch(e => console.error('[bar] advance failed', e))
+
+        // 重新拉取最新状态返回
+        const [{ data: t2 }, { data: s2 }] = await Promise.all([
+          supabase.from('bar_topics').select('*').eq('id', topic.id).single(),
+          supabase.from('bar_sessions')
+            .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
+            .eq('topic_id', topic.id)
+            .order('table_num').order('seat_num')
+        ])
+        if (t2) finalTopic = t2
+        if (s2) finalSessions = s2
       }
 
       return json(res, 200, {
-        topic,
-        sessions: allSessions,
+        topic: finalTopic,
+        sessions: finalSessions,
         total_seats: MAX_TOTAL,
         is_active: isBarActive(),
         is_published: isTopicPublished()

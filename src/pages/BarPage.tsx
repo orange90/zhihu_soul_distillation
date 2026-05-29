@@ -212,6 +212,25 @@ export default function BarPage() {
     }
   }, [currentUserId, sessions])
 
+  // 8 点后讨论进行中：轮询刷新。发言由对 /api/bar 的轮询逐批生成（advanceBar），
+  // serverless 没有后台任务，必须靠前端持续拉取来推进、补齐发言。
+  // 单批生成约需数十秒，用 inFlight 标记避免上一批还没回来就重复触发。
+  const barAdvancing = useRef(false)
+  useEffect(() => {
+    if (!isActive || !topic || topic.status === 'completed') return
+    const tick = async () => {
+      if (barAdvancing.current) return
+      barAdvancing.current = true
+      try {
+        await load()
+      } finally {
+        barAdvancing.current = false
+      }
+    }
+    const timer = setInterval(tick, 10000)
+    return () => clearInterval(timer)
+  }, [isActive, topic?.status])
+
   useEffect(() => {
     if (!isPlaying || speechSessions.length === 0) return
     if (currentSpeakerIdx >= speechSessions.length) {
@@ -448,6 +467,9 @@ export default function BarPage() {
                     今日议题 · {topic.date_key}
                     {topic.status === 'active' && <span className="ml-2 text-amber-400">🔴 讨论进行中</span>}
                     {topic.status === 'completed' && <span className="ml-2 text-green-400">✓ 已结束</span>}
+                    {topic.status === 'active' && sessions.length > 0 && speechSessions.length < sessions.length && (
+                      <span className="ml-2 text-amber-300/80 animate-pulse">· AI 正在生成发言…</span>
+                    )}
                   </div>
                   <h2 className="text-white text-xl font-bold leading-snug">
                     {topic.topic}

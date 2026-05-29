@@ -123,16 +123,18 @@ function DebateView({ topic, participants }: { topic: Topic; participants: Parti
 
   useEffect(() => {
     if (!isPlaying) return
-    if (currentTurnIdx >= turns.length) {
-      setIsPlaying(false)
-      return
-    }
-    const delay = Math.max(3000, turns[currentTurnIdx]?.content.length * 60)
+    // 已播到当前已生成发言的末尾：若辩论仍在生成，则原地等待新发言（轮询会补齐 turns 后自动续播）；
+    // 注意这里不要 setIsPlaying(false)，否则后续到达的发言不会再自动播放。
+    if (currentTurnIdx >= turns.length) return
+    const delay = Math.max(3000, (turns[currentTurnIdx]?.content.length || 0) * 60)
     intervalRef.current = window.setTimeout(() => {
       setCurrentTurnIdx(i => i + 1)
     }, delay)
     return () => { if (intervalRef.current) clearTimeout(intervalRef.current) }
   }, [currentTurnIdx, isPlaying, turns])
+
+  const isGenerating = topic.status === 'debating'
+  const caughtUp = currentTurnIdx >= turns.length
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -164,8 +166,10 @@ function DebateView({ topic, participants }: { topic: Topic; participants: Parti
                   第 {currentTurn.round} 轮 · {roundLabel(currentTurn.round)}
                 </div>
               )}
-              {topic.status === 'debating' && (
-                <div className="mt-2 text-blue-200 text-xs animate-pulse">正在生成辩论…</div>
+              {isGenerating && caughtUp && (
+                <div className="mt-2 text-blue-200 text-xs animate-pulse">
+                  {turns.length === 0 ? '辩手就位，正在生成开场陈词…' : '正在生成下一轮发言…'}
+                </div>
               )}
             </div>
             <DebateTable label="反方" side="negative" participants={participants} currentTurn={currentTurn} isTop={false} />
@@ -220,9 +224,16 @@ function DebateView({ topic, participants }: { topic: Topic; participants: Parti
       <div className="bg-white rounded-xl border">
         <div className="p-4 border-b flex items-center justify-between">
           <span className="font-medium text-sm text-zhihu-ink">完整辩论记录</span>
-          <span className="text-xs text-gray-400">{turns.length} 条发言</span>
+          <span className="text-xs text-gray-400">
+            {turns.length} 条发言{isGenerating && <span className="ml-1 text-amber-500 animate-pulse">· 生成中…</span>}
+          </span>
         </div>
         <div ref={scrollRef} className="max-h-80 overflow-y-auto p-3 space-y-3">
+          {turns.length === 0 && (
+            <div className="text-center text-xs text-gray-400 py-8">
+              {isGenerating ? '辩手正在组织语言，发言将陆续出现…' : '暂无发言'}
+            </div>
+          )}
           {turns.map((t, i) => (
             <div
               key={i}
@@ -394,6 +405,51 @@ export default function ArenaPage() {
       if (!opts?.silent) setLoading(false)
     }
   }
+
+  // 有辩论处于「辩论中」时，轮询推进发言生成并刷新状态。
+  // serverless 没有后台任务，发言由对 /api/arena?topicId= 的轮询逐轮生成（advanceDebate）。
+  // 单轮生成约需数十秒，用 inFlight 标记避免上一轮还没回来就重复触发（白白多花 LLM 调用）。
+  const debatingIds = topics.filter(t => t.status === 'debating').map(t => t.id).join(',')
+  const listAdvancing = useRef(false)
+  useEffect(() => {
+    if (!debatingIds) return
+    let cancelled = false
+    const tick = async () => {
+      if (listAdvancing.current) return
+      listAdvancing.current = true
+      try {
+        const ids = debatingIds.split(',').filter(Boolean)
+        // 逐个推进（getTopic 会在服务端生成下一轮），再静默刷新列表状态
+        await Promise.all(ids.map(id => api.arena.getTopic(id).catch(() => {})))
+        if (!cancelled) await loadTopics({ silent: true, forceApi: true })
+      } finally {
+        listAdvancing.current = false
+      }
+    }
+    const timer = setInterval(tick, 12000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [debatingIds])
+
+  // 正在观看的辩论若未完结，轮询补齐后续轮次的发言
+  const modalAdvancing = useRef(false)
+  useEffect(() => {
+    if (!viewingTopic || viewingTopic.status === 'completed') return
+    let cancelled = false
+    const tick = async () => {
+      if (modalAdvancing.current) return
+      modalAdvancing.current = true
+      try {
+        const data = await api.arena.getTopic(viewingTopic.id)
+        if (cancelled) return
+        setViewingTopic({ ...data.topic, debate_transcript: data.topic.debate_transcript || [] })
+        setViewParticipants(data.participants)
+      } catch { /* 忽略单次失败，下次轮询再试 */ } finally {
+        modalAdvancing.current = false
+      }
+    }
+    const timer = setInterval(tick, 10000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [viewingTopic?.id, viewingTopic?.status])
 
   const handleJoin = async (topicId: string, side: 'affirmative' | 'negative') => {
     setJoiningTopic(topicId)

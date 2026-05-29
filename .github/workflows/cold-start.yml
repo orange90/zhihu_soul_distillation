@@ -34,3 +34,25 @@ jobs:
 
           echo "Triggering debate arena cold start..."
           curl -sL -o /dev/null -w "arena: %{http_code}\n" "${PRODUCTION_URL}/api/arena"
+
+          # serverless 没有后台任务：8 点补位置为「辩论中/进行中」后，发言需要被「逐轮/逐批」主动驱动生成。
+          # 这里循环调用推进接口，直到辩论场全部完结、酒吧讨论结束（或达到最大轮次），
+          # 确保即使没有访客打开页面也能准时产出发言。
+          echo "Advancing debates & bar speeches to completion..."
+          for i in $(seq 1 8); do
+            ARENA=$(curl -sL "${PRODUCTION_URL}/api/arena?action=advance")
+            echo "arena advance #$i: $ARENA"
+
+            BAR=$(curl -sL "${PRODUCTION_URL}/api/bar")
+            if echo "$BAR" | grep -q '"status":"completed"'; then BAR_DONE=1; else BAR_DONE=0; fi
+            echo "bar advance #$i: completed=$BAR_DONE"
+
+            ARENA_DONE=0
+            echo "$ARENA" | grep -q '"in_progress":false' && ARENA_DONE=1
+
+            if [ "$ARENA_DONE" = "1" ] && [ "$BAR_DONE" = "1" ]; then
+              echo "All debates and bar discussion completed."
+              break
+            fi
+            sleep 15
+          done
