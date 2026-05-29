@@ -184,7 +184,7 @@ export const api = {
         result: DebateResult
         created_at: string
       }>
-    }>('/api/debate-history'),
+    }>('/api/chat'),
 
   myDistillations: () => jsonFetch<{
     answers: Array<{

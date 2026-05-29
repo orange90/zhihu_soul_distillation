@@ -287,9 +287,24 @@ async function handleDebate(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    if (req.method !== 'POST') return badRequest(res, 'method not allowed')
     const session = readSession(req)
     if (!session) return unauthorized(res)
+
+    // GET ?history=1 — 返回当前用户的辩论历史
+    if (req.method === 'GET') {
+      const supabase = getSupabase()
+      if (!supabase) return json(res, 503, { error: 'DB 未配置' })
+      const { data, error } = await supabase
+        .from('debate_history')
+        .select('id, question, author_names, result, created_at')
+        .eq('user_id', session.user_id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) return serverError(res, new Error(error.message))
+      return json(res, 200, { records: data || [] })
+    }
+
+    if (req.method !== 'POST') return badRequest(res, 'method not allowed')
 
     const body = await readBody<{
       persona: Persona
