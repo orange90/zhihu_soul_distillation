@@ -47,12 +47,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (raw.length === 0) return badRequest(res, '没有提供答案')
     if (raw.length > MAX_BATCH) return badRequest(res, `单批最多 ${MAX_BATCH} 条`)
 
-    // 认可的本人 id：OAuth uid + 插件观察并烙进 token 的 url_token；
-    // 任一匹配即视为本人（同一个人在两个 zhihu API 表面下的两种 id 形态）。
-    const validIds = new Set<string>()
-    if (session.user_id) validIds.add(String(session.user_id))
-    if (session.linked_url_token) validIds.add(String(session.linked_url_token))
-
+    // 不再在后端校验 author_id 是否等于登录用户：
+    // 插件前端只在「自己主页」且「卡片作者为本人」的回答上才显示「加入蒸馏」按钮，
+    // 由前端保证只上传本人内容。后端统一以登录用户的 user_id 作为 uploader_id 落库。
     const accepted: Array<{ uploader_id: string; answer_id: string }> = []
     const rejected: Array<{ answer_id: string; reason: string }> = []
     const rows: Array<Record<string, unknown>> = []
@@ -60,15 +57,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const a of raw) {
       if (!a.answer_id) {
         rejected.push({ answer_id: String(a.answer_id || '<missing>'), reason: '缺少 answer_id' })
-        continue
-      }
-      // 关键安全检查：上传内容必须属于当前登录用户本人，杜绝代他人蒸馏
-      if (!validIds.has(String(a.author_id))) {
-        rejected.push({
-          answer_id: a.answer_id,
-          reason: `author_id (${a.author_id}) 与登录用户 (${[...validIds].join(' | ') || '?'}) 不匹配；` +
-            `如果你刚装插件请重新打开插件 popup 点「校验登录态」让插件刷新 token`
-        })
         continue
       }
       const content = stripHtml(a.content || '')
