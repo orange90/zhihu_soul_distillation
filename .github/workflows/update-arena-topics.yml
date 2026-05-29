@@ -27,42 +27,22 @@ jobs:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: |
           if [ -z "$PRODUCTION_URL" ]; then
-            echo "::error::PRODUCTION_URL is not set."
-            echo "Go to: Settings > Secrets and variables > Actions > Variables, add PRODUCTION_URL=https://your-domain.com"
+            echo "::error::PRODUCTION_URL is not set. Go to Settings > Variables > Actions and add PRODUCTION_URL=https://your-domain.com"
             exit 1
           fi
 
-          TODAY=$(TZ=Asia/Shanghai date +%Y-%m-%d)
+          export TODAY=$(TZ=Asia/Shanghai date +%Y-%m-%d)
           echo "Fetching topics for $TODAY from $PRODUCTION_URL"
 
           HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/arena-response.json "${PRODUCTION_URL}/api/arena")
+          echo "HTTP status: $HTTP_CODE"
           if [ "$HTTP_CODE" -ne 200 ]; then
             echo "::error::API returned HTTP $HTTP_CODE"
             cat /tmp/arena-response.json || true
             exit 1
           fi
 
-          export TODAY
-          python3 - << 'PYEOF'
-import json, os
-
-with open('/tmp/arena-response.json') as f:
-    data = json.load(f)
-
-today = os.environ.get('TODAY', '')
-data['date'] = today
-
-topics = data.get('topics', [])
-if not topics:
-    print('No topics returned — skipping write')
-    exit(1)
-
-print(f'Got {len(topics)} topics for {today}')
-
-with open('public/arena-topics.json', 'w', encoding='utf-8') as out:
-    json.dump(data, out, ensure_ascii=False, indent=2)
-    out.write('\n')
-PYEOF
+          python3 scripts/update-arena-topics.py
 
       - name: Commit and push updated topics
         run: |
