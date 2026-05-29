@@ -4,7 +4,7 @@ import { readSession } from './_lib/session.js'
 import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
 
-const CATEGORIES = ['人文', '科技', '教育', '数码', '生物科学']
+const CATEGORIES = ['人文', '科技', '教育', '生物科学']
 
 function getWeekKey(date = new Date()): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -107,7 +107,6 @@ async function ensureDailyTopics(supabase: any, dayKey: string) {
       '人文': { title: 'AI 创作应被认定为真正的艺术吗', affirmative_view: '应该，AI 艺术代表创意新边界', negative_view: '不应该，真正艺术源于人类情感' },
       '科技': { title: '大模型的涌现能力是真实质变还是幻觉', affirmative_view: '是真实质变，代表智能新层级', negative_view: '是统计幻觉，本质仍是模式匹配' },
       '教育': { title: '全面推广 AI 辅助学习会让学生更聪明吗', affirmative_view: '会，AI 释放认知带宽提升思维', negative_view: '不会，反而会侵蚀独立思考能力' },
-      '数码': { title: '短视频算法推荐是在满足需求还是制造需求', affirmative_view: '在满足，精准推荐提升效率', negative_view: '在制造，让人困在信息茧房' },
       '生物科学': { title: '基因编辑应该被允许用于人类胚胎增强吗', affirmative_view: '应该，是消除遗传疾病的进步', negative_view: '不应该，带来不可控伦理风险' }
     }
     const fallbackRows = missing.filter(c => fallbacks[c]).map(c => ({
@@ -232,36 +231,33 @@ async function generateDebate(supabase: any, topicId: string) {
     ai_judgement: debateData.judgement
   }).eq('id', topicId)
 
-  // Award scores to winners using upsert + increment
+  // Award scores: winners +2, losers -1
   if (debateData.winner === 'affirmative' || debateData.winner === 'negative') {
     const weekKey = topic.week_key
-    const winners = participants.filter((p: any) => p.side === debateData.winner)
-    for (const w of winners) {
-      // Ensure row exists with base info
+    for (const p of participants) {
+      const delta = p.side === debateData.winner ? 2 : -1
+
+      // Ensure row exists first (insert if missing)
       await supabase.from('user_scores').upsert({
-        user_id: w.user_id,
-        user_name: w.user_name,
-        user_avatar: w.user_avatar || null,
+        user_id: p.user_id,
+        user_name: p.user_name,
+        user_avatar: p.user_avatar || null,
         week_key: weekKey,
         score: 0,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,week_key', ignoreDuplicates: true })
 
-      // Increment via RPC (or manual read-add-write fallback)
-      const { error: rpcErr } = await supabase.rpc('increment_score', { p_user_id: w.user_id, p_week_key: weekKey })
-      if (rpcErr) {
-        // Fallback: read current + update
-        const { data: cur } = await supabase
-          .from('user_scores')
-          .select('score')
-          .eq('user_id', w.user_id)
-          .eq('week_key', weekKey)
-          .single()
-        await supabase.from('user_scores').update({
-          score: (cur?.score || 0) + 1,
-          updated_at: new Date().toISOString()
-        }).eq('user_id', w.user_id).eq('week_key', weekKey)
-      }
+      // Read + update with delta
+      const { data: cur } = await supabase
+        .from('user_scores')
+        .select('score')
+        .eq('user_id', p.user_id)
+        .eq('week_key', weekKey)
+        .single()
+      await supabase.from('user_scores').update({
+        score: (cur?.score || 0) + delta,
+        updated_at: new Date().toISOString()
+      }).eq('user_id', p.user_id).eq('week_key', weekKey)
     }
   }
 
@@ -335,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         neg_count: (partMap[t.id] || []).filter((p: any) => p.side === 'negative').length
       }))
 
-      return json(res, 200, { topics: enriched, week_key: weekKey })
+      return json(res, 200, { topics: enriched, week_key: weekKey, date: dayKey })
     }
 
     if (req.method === 'POST') {

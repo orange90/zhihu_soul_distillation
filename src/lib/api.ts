@@ -203,16 +203,38 @@ export const api = {
     }>('/api/my-distillations', { method: 'POST' }),
 
   arena: {
-    list: () => jsonFetch<{
-      topics: Array<{
-        id: string; category: string; title: string
-        affirmative_view: string; negative_view: string
-        week_key: string; status: string; winner: string | null; ai_judgement: string | null
-        participants: Array<{ user_id: string; user_name: string; user_avatar: string; side: string; debater_pos: number }>
-        aff_count: number; neg_count: number
-      }>
-      week_key: string
-    }>('/api/arena'),
+    list: async () => {
+      // CST date (UTC+8)
+      const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)
+      try {
+        const r = await fetch('/arena-topics.json', { cache: 'no-cache' })
+        if (r.ok) {
+          const d = await r.json()
+          if (d.date === today && Array.isArray(d.topics) && d.topics.length > 0) {
+            return d as {
+              topics: Array<{
+                id: string; category: string; title: string
+                affirmative_view: string; negative_view: string
+                week_key: string; status: string; winner: string | null; ai_judgement: string | null
+                participants: Array<{ user_id: string; user_name: string; user_avatar: string; side: string; debater_pos: number }>
+                aff_count: number; neg_count: number
+              }>
+              week_key: string; date: string
+            }
+          }
+        }
+      } catch { /* fall through to API */ }
+      return jsonFetch<{
+        topics: Array<{
+          id: string; category: string; title: string
+          affirmative_view: string; negative_view: string
+          week_key: string; status: string; winner: string | null; ai_judgement: string | null
+          participants: Array<{ user_id: string; user_name: string; user_avatar: string; side: string; debater_pos: number }>
+          aff_count: number; neg_count: number
+        }>
+        week_key: string; date?: string
+      }>('/api/arena')
+    },
 
     getTopic: (topicId: string) => jsonFetch<{
       topic: any; participants: any[]

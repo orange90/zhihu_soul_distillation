@@ -24,7 +24,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   '人文': 'text-purple-700 bg-purple-50 border-purple-200',
   '科技': 'text-blue-700 bg-blue-50 border-blue-200',
   '教育': 'text-green-700 bg-green-50 border-green-200',
-  '数码': 'text-indigo-700 bg-indigo-50 border-indigo-200',
   '生物科学': 'text-teal-700 bg-teal-50 border-teal-200'
 }
 
@@ -415,7 +414,7 @@ export default function ArenaPage() {
         <button onClick={() => navigate('/')} className="text-gray-500 hover:text-zhihu-blue text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:border-zhihu-blue/40 hover:bg-blue-50 transition-colors">← 返回</button>
         <div>
           <h1 className="text-2xl font-bold text-zhihu-ink">新知辩论场</h1>
-          <div className="text-xs text-gray-500 mt-0.5">今日 {weekKey} · 5 场辩论，每日更新，用你的数字分身参战</div>
+          <div className="text-xs text-gray-500 mt-0.5">今日 {weekKey} · 4 场辩论，每日更新，用你的数字分身参战</div>
         </div>
         <button
           onClick={() => navigate('/leaderboard')}

@@ -4,9 +4,9 @@ import { readSession } from './_lib/session.js'
 import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
 
-const MAX_TABLES = 5
+const MAX_TABLES = 4
 const SEATS_PER_TABLE = 6
-const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 30
+const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 24
 
 const FALLBACK_TOPICS = [
   'AI 大模型是否正在取代人类的创造力？',
