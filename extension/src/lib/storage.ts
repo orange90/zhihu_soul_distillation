@@ -4,7 +4,8 @@ export type ExtensionConfig = {
   linkedUrlToken: string
 }
 
-const DEFAULT_API_BASE = 'http://localhost:3000'
+// 写死生产 origin；本地开发时由 web-bridge 接收 localhost 的 token 时会同步更新到 localhost。
+const DEFAULT_API_BASE = 'https://zhihusoul.cn'
 
 export async function getConfig(): Promise<ExtensionConfig> {
   const stored = await chrome.storage.local.get(['apiBase', 'token', 'linkedUrlToken'])

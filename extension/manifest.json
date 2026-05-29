@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "知识蒸馏馆 · 我的知乎沉淀",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "把你自己在知乎的回答勾选/批量上传到知识蒸馏馆，蒸馏成只属于你的个人 AI Skill。仅支持上传当前登录用户本人的内容。",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
@@ -25,6 +25,15 @@
       "matches": ["https://www.zhihu.com/*"],
       "js": ["content.js"],
       "css": ["content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://zhihusoul.cn/*",
+        "https://*.zhihusoul.cn/*",
+        "http://localhost:3000/*"
+      ],
+      "js": ["web-bridge.js"],
       "run_at": "document_idle"
     }
   ],

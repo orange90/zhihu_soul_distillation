@@ -95,16 +95,37 @@ function clearSelection(opts: { silent?: boolean } = {}) {
   if (!opts.silent) setStatus('已清空选择')
 }
 
+// 卡片里所有 /people/<token> 链接，看是否至少有一个指向当前登录用户。
+// 用于过滤 timeline 上的"赞同/收藏了 XX 的回答"这类指向他人的卡片。
+function cardBelongsToMe(el: Element, myUrlToken: string): boolean {
+  const anchors = el.querySelectorAll('a[href*="/people/"]')
+  for (const a of Array.from(anchors)) {
+    const href = (a as HTMLAnchorElement).getAttribute('href') || ''
+    const m = href.match(/\/people\/([^/?#]+)/)
+    if (m && m[1] === myUrlToken) return true
+  }
+  return false
+}
+
 function injectCheckboxes() {
   if (!isMyProfilePage()) return
+  const me = STATE.me
+  if (!me?.url_token) return
   const items = document.querySelectorAll('[data-zop]')
   items.forEach((el) => {
-    if ((el as HTMLElement).dataset.zsdInjected === '1') return
+    const marker = (el as HTMLElement).dataset.zsdInjected
+    if (marker === '1' || marker === 'skip') return
     const parsed = parseAnswerElement(el)
-    if (!parsed) return
-    // 只对"我自己的回答"挂勾选 UI（按 url_token 比对）
-    // 注：data-zop 里 authorMemberHash 多为加密 id，并非 url_token；
-    // 为保险起见这里不严格按 author_id 过滤，但只在"我自己的主页"才会调到这里。
+    if (!parsed) {
+      ;(el as HTMLElement).dataset.zsdInjected = 'skip'
+      return
+    }
+    // 关键过滤：卡片里没有任何指向我的 /people/<token> 链接，说明这是别人的回答
+    // （比如 timeline 上的"赞同了回答"卡片），不挂"加入蒸馏"按钮
+    if (!cardBelongsToMe(el, me.url_token)) {
+      ;(el as HTMLElement).dataset.zsdInjected = 'skip'
+      return
+    }
     ;(el as HTMLElement).dataset.zsdInjected = '1'
 
     const checkbox = document.createElement('button')

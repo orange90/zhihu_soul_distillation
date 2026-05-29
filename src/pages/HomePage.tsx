@@ -19,6 +19,11 @@ export default function HomePage() {
   const [pluginTokenLoading, setPluginTokenLoading] = useState(false)
   const [pluginTokenError, setPluginTokenError] = useState<string | null>(null)
   const [pluginTokenCopied, setPluginTokenCopied] = useState(false)
+  const [extInstalled, setExtInstalled] = useState<boolean | null>(null) // null=未知
+  const [extVersion, setExtVersion] = useState<string | null>(null)
+  const [installStatus, setInstallStatus] = useState<
+    null | { kind: 'ok' | 'err' | 'loading'; text: string }
+  >(null)
 
   useEffect(() => {
     api
@@ -26,6 +31,29 @@ export default function HomePage() {
       .then((r) => setUser(r.user))
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
+  }, [])
+
+  // 检测插件是否安装：发 zsd:ping，等 zsd:pong / zsd:installed
+  useEffect(() => {
+    let timer: number | null = null
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.source !== window) return
+      const d = ev.data
+      if (!d || typeof d !== 'object') return
+      if (d.type === 'zsd:pong' || d.type === 'zsd:installed') {
+        setExtInstalled(true)
+        if (typeof d.version === 'string') setExtVersion(d.version)
+      }
+    }
+    window.addEventListener('message', onMsg)
+    window.postMessage({ type: 'zsd:ping' }, window.location.origin)
+    timer = window.setTimeout(() => {
+      setExtInstalled((cur) => (cur === null ? false : cur))
+    }, 1500)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      if (timer) window.clearTimeout(timer)
+    }
   }, [])
 
   const handleOptOutToggle = async () => {
@@ -69,6 +97,41 @@ export default function HomePage() {
       // 兜底：选中
       const ta = document.getElementById('plugin-token-textarea') as HTMLTextAreaElement | null
       ta?.select()
+    }
+  }
+
+  // 一键写入：取 Token → postMessage 给 web-bridge → 等 ack
+  const installTokenToExtension = async () => {
+    setInstallStatus({ kind: 'loading', text: '正在写入插件…' })
+    try {
+      const r = await api.pluginToken()
+      const ackPromise = new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        const timer = window.setTimeout(
+          () => resolve({ ok: false, error: '插件未响应（请确认已安装并启用）' }),
+          3000
+        )
+        const onMsg = (ev: MessageEvent) => {
+          if (ev.source !== window) return
+          const d = ev.data
+          if (!d || d.type !== 'zsd:install-token-ack') return
+          window.clearTimeout(timer)
+          window.removeEventListener('message', onMsg)
+          resolve({ ok: !!d.ok, error: d.error })
+        }
+        window.addEventListener('message', onMsg)
+      })
+      window.postMessage(
+        { type: 'zsd:install-token', token: r.token, apiBase: window.location.origin },
+        window.location.origin
+      )
+      const ack = await ackPromise
+      if (ack.ok) {
+        setInstallStatus({ kind: 'ok', text: '已写入插件 ✓ 去自己的知乎主页就能勾选回答了' })
+      } else {
+        setInstallStatus({ kind: 'err', text: `写入失败：${ack.error || 'unknown'}` })
+      }
+    } catch (e: any) {
+      setInstallStatus({ kind: 'err', text: `获取 Token 失败：${String(e?.message || e)}` })
     }
   }
 
@@ -157,22 +220,40 @@ export default function HomePage() {
                     </span>
                   )}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={openPluginModal}
-                    className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
-                  >
-                    获取插件 Token
-                  </button>
-                  <a
-                    href="https://github.com/orange90/zhihu_soul_distillation/releases"
-                    target="_blank"
-                    rel="noopener"
-                    className="text-xs px-3 py-1.5 rounded-full border border-zhihu-blue/40 text-zhihu-blue hover:bg-zhihu-blue/5"
-                  >
-                    下载插件（GitHub Releases）
-                  </a>
+                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                  {extInstalled === true ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={installTokenToExtension}
+                        disabled={installStatus?.kind === 'loading'}
+                        className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90 disabled:opacity-50"
+                      >
+                        {installStatus?.kind === 'loading'
+                          ? '写入中…'
+                          : '一键写入 Token 到插件'}
+                      </button>
+                      <span className="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                        ✓ 已检测到插件 {extVersion ? `v${extVersion}` : ''}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        href="https://github.com/orange90/zhihu_soul_distillation/releases"
+                        target="_blank"
+                        rel="noopener"
+                        className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
+                      >
+                        下载插件
+                      </a>
+                      {extInstalled === false && (
+                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                          未检测到插件（请先安装）
+                        </span>
+                      )}
+                    </>
+                  )}
                   <a
                     href="https://github.com/orange90/zhihu_soul_distillation#浏览器插件蒸馏自己"
                     target="_blank"
@@ -181,7 +262,28 @@ export default function HomePage() {
                   >
                     安装说明
                   </a>
+                  <button
+                    type="button"
+                    onClick={openPluginModal}
+                    className="text-[11px] text-gray-400 hover:text-zhihu-blue underline-offset-2 hover:underline"
+                  >
+                    手动复制 Token
+                  </button>
                 </div>
+                {installStatus && (
+                  <div
+                    className={[
+                      'mt-2 text-xs rounded-md px-2 py-1 inline-block',
+                      installStatus.kind === 'ok'
+                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                        : installStatus.kind === 'err'
+                          ? 'text-red-700 bg-red-50 border border-red-200'
+                          : 'text-gray-600 bg-gray-50 border border-gray-200'
+                    ].join(' ')}
+                  >
+                    {installStatus.text}
+                  </div>
+                )}
               </div>
             </div>
           </div>

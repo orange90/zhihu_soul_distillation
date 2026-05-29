@@ -57,3 +57,13 @@ section { margin-bottom: 12px; }
 }
 .status[data-kind='ok'] { border-color: #6ee7b7; background: #ecfdf5; color: #047857; }
 .status[data-kind='err'] { border-color: #fca5a5; background: #fef2f2; color: #b91c1c; }
+
+.kv { display: flex; align-items: baseline; gap: 8px; font-size: 12px; margin: 4px 0; }
+.kv-k { color: #6b7280; min-width: 40px; }
+.kv-v { color: #1a1a1a; word-break: break-all; }
+.kv-v.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.advanced { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e5e7eb; }
+.advanced summary { cursor: pointer; color: #6b7280; font-size: 12px; }
+.advanced summary:hover { color: #1a1a1a; }
+a { color: #0f88eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
