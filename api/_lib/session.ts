@@ -57,7 +57,15 @@ function parseCookies(req: VercelRequest): Record<string, string> {
 
 export function readSession(req: VercelRequest): SessionData | null {
   const cookies = parseCookies(req)
-  return decodeSession(cookies[COOKIE_NAME])
+  const fromCookie = decodeSession(cookies[COOKIE_NAME])
+  if (fromCookie) return fromCookie
+  // 浏览器插件场景：Cookie 因 SameSite=Lax 在跨域 POST 时不会带上，改走 Authorization: Bearer <encoded-session>
+  const auth = req.headers.authorization || req.headers.Authorization
+  if (typeof auth === 'string') {
+    const m = /^Bearer\s+(.+)$/i.exec(auth.trim())
+    if (m) return decodeSession(m[1])
+  }
+  return null
 }
 
 export function writeSession(res: VercelResponse, data: SessionData) {

@@ -109,4 +109,39 @@ vercel.json                  Vercel 部署配置
 
 `author_skills` 以 `author_id` 为主键，所有用户共享。热门答主在被第一位用户蒸馏后，后续其他用户的同名选择可直接命中缓存，显著降低搜索 / AI 配额消耗。
 
+## 浏览器插件（蒸馏自己）
+
+知乎没有公开的「按答主拉全部回答」API，搜索通路召回上限只有 top 25。配套的浏览器插件让你**仅蒸馏自己**：到自己的知乎主页一键勾选 / 批量抓取回答，上传后蒸馏直接基于原始素材，跳过搜索。后端会逐条校验 `answer.author_id === session.user_id`，杜绝代他人上传。
+
+### 下载与安装
+
+最新构建：[`extension/releases/zsd-extension-v0.1.0.zip`](extension/releases/zsd-extension-v0.1.0.zip)
+（或在 [Releases](https://github.com/orange90/zhihu_soul_distillation/releases) 页面找最新版）
+
+1. 下载 zip 并解压
+2. 打开 Chrome / Edge → `chrome://extensions` → 打开右上角「开发者模式」
+3. 点「加载已解压的扩展程序」→ 选择解压后的文件夹
+4. 在蒸馏馆首页点「获取插件 Token」按钮 → 复制 Token
+5. 点击浏览器右上角插件图标 → 填入后端地址（开发期 `http://localhost:3000`，生产换成你的域名）+ Token → 保存
+6. 访问自己的知乎主页 `https://www.zhihu.com/people/<你的 url_token>`，页面底部会出现工具栏；可以逐条点「加入蒸馏」或直接「一键批量抓取」
+7. 上传完成后回蒸馏馆 `/select`，「我自己」卡片会显示「插件已上传 N 条」，再点开始蒸馏即可走 self_upload 通路
+
+### 本地构建
+
+```bash
+cd extension
+npm install
+npm run build         # 产出 extension/dist
+# 然后 chrome://extensions → Load unpacked → 选 extension/dist
+```
+
+### 发布新版本（维护者）
+
+```bash
+# 修改 extension/package.json 和 extension/manifest.json 里的 version
+git tag ext-v0.1.1
+git push origin ext-v0.1.1
+# GitHub Actions 会自动构建 + 上传到 Releases
+```
+
 

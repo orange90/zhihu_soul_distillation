@@ -16,6 +16,7 @@ export default function SelectPage() {
   const [page, setPage] = useState(1)
   const [loadingHint, setLoadingHint] = useState('正在拉取你的关注列表…')
   const [elapsed, setElapsed] = useState(0)
+  const [meInfo, setMeInfo] = useState<{ id: string; upload_count?: number } | null>(null)
 
   useEffect(() => {
     const startedAt = Date.now()
@@ -39,6 +40,15 @@ export default function SelectPage() {
       .finally(() => {
         clearInterval(tick)
         timers.forEach(clearTimeout)
+      })
+
+    api
+      .me()
+      .then((r) => {
+        if (r.user) setMeInfo({ id: r.user.id, upload_count: r.user.upload_count })
+      })
+      .catch(() => {
+        /* 不阻塞页面 */
       })
 
     return () => {
@@ -314,6 +324,14 @@ export default function SelectPage() {
                     {isOptedOut && (
                       <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-normal">
                         已禁止被蒸馏
+                      </span>
+                    )}
+                    {meInfo && a.id === meInfo.id && (meInfo.upload_count ?? 0) > 0 && (
+                      <span
+                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-zhihu-blue/10 text-zhihu-blue border border-zhihu-blue/30 font-normal"
+                        title="蒸馏将直接基于你通过插件上传的原始回答，跳过站内搜索"
+                      >
+                        插件已上传 {meInfo.upload_count} 条
                       </span>
                     )}
                   </div>
