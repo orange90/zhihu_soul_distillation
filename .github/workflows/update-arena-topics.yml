@@ -34,7 +34,7 @@ jobs:
           export TODAY=$(TZ=Asia/Shanghai date +%Y-%m-%d)
           echo "Fetching topics for $TODAY from $PRODUCTION_URL"
 
-          HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/arena-response.json "${PRODUCTION_URL}/api/arena")
+          HTTP_CODE=$(curl -sL -w "%{http_code}" -o /tmp/arena-response.json "${PRODUCTION_URL}/api/arena")
           echo "HTTP status: $HTTP_CODE"
           if [ "$HTTP_CODE" -ne 200 ]; then
             echo "::error::API returned HTTP $HTTP_CODE"
