@@ -1,7 +1,7 @@
 // 注入到 zhihu.com 全站。仅在"我自己的主页"显示批量抓取按钮，
 // 在我自己的回答上显示勾选 UI。其他场景静默。
 
-import { fetchMe, parseAnswerElement, type CollectedAnswer } from './lib/zhihu'
+import { fetchMe, parseAnswerElement, fetchFullAnswerContent, type CollectedAnswer } from './lib/zhihu'
 
 const STATE = {
   me: null as Awaited<ReturnType<typeof fetchMe>> | null,
@@ -72,6 +72,17 @@ function ensureToolbar() {
   bar.querySelector('#zsd-btn-clear')!.addEventListener('click', () => clearSelection())
 }
 
+function showToast(msg: string) {
+  const existing = document.getElementById('zsd-toast')
+  if (existing) existing.remove()
+  const toast = document.createElement('div')
+  toast.id = 'zsd-toast'
+  toast.className = 'zsd-toast'
+  toast.textContent = msg
+  document.body.appendChild(toast)
+  setTimeout(() => toast.remove(), 3000)
+}
+
 function setStatus(text: string, kind: 'info' | 'ok' | 'err' = 'info') {
   const el = document.getElementById('zsd-status')
   if (!el) return
@@ -131,7 +142,7 @@ function injectCheckboxes() {
     checkbox.type = 'button'
     checkbox.title = '加入蒸馏'
     checkbox.innerHTML = '<span class="zsd-checkbox-tick">✓</span> 加入蒸馏'
-    checkbox.addEventListener('click', (e) => {
+    checkbox.addEventListener('click', async (e) => {
       e.preventDefault()
       e.stopPropagation()
       const me = STATE.me
@@ -139,16 +150,33 @@ function injectCheckboxes() {
         setStatus('未识别到登录态，请先登录知乎', 'err')
         return
       }
-      // 用户在自己的主页，强行用 me.id 作为 author_id，后端再次校验
       const ans: CollectedAnswer = { ...parsed, author_id: me.id }
       if (STATE.selected.has(ans.answer_id)) {
         STATE.selected.delete(ans.answer_id)
         checkbox.classList.remove('zsd-checked')
+        updateCount()
       } else {
-        STATE.selected.set(ans.answer_id, ans)
+        if (STATE.selected.size >= 10) {
+          showToast('请先取消勾选其他回答，因为最多只能选择 10 条。')
+          return
+        }
+        // 先标记选中，再异步拉取全文
         checkbox.classList.add('zsd-checked')
+        STATE.selected.set(ans.answer_id, ans)
+        updateCount()
+        setStatus('正在获取全文…')
+        try {
+          const fullContent = await fetchFullAnswerContent(ans.answer_id)
+          if (fullContent && fullContent.length > ans.content.length) {
+            ans.content = fullContent
+            ans.excerpt = fullContent.slice(0, 300)
+            STATE.selected.set(ans.answer_id, ans)
+          }
+          setStatus(`已选 ${STATE.selected.size} 条`)
+        } catch {
+          setStatus(`已选 ${STATE.selected.size} 条`)
+        }
       }
-      updateCount()
     })
 
     const anchor =

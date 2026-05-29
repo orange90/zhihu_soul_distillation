@@ -256,7 +256,7 @@ export default function BarPage() {
       <div className="relative max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate('/')} className="text-blue-300/60 hover:text-blue-300 text-sm">← 返回</button>
+          <button onClick={() => navigate('/')} className="text-blue-300/70 hover:text-blue-200 text-sm px-3 py-1.5 rounded-lg border border-blue-300/30 hover:border-blue-300/60 hover:bg-blue-300/10 transition-colors">← 返回</button>
           <div>
             <h1 className="text-2xl font-bold text-white">🍺 学术酒吧</h1>
             <div className="text-xs text-blue-300/60 mt-0.5">与你的数字分身一起，品酒论道</div>

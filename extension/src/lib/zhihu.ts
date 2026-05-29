@@ -111,6 +111,19 @@ export async function fetchAllMyAnswers(
   return collected
 }
 
+// 通过 Zhihu v4 API 获取回答的完整正文（解决 DOM 截断问题）。
+export async function fetchFullAnswerContent(answerId: string): Promise<string> {
+  try {
+    const data = await jsonFetch<any>(
+      `https://www.zhihu.com/api/v4/answers/${answerId}?include=content`
+    )
+    const raw = data.content || data.excerpt || ''
+    return raw ? stripHtml(raw) : ''
+  } catch {
+    return ''
+  }
+}
+
 // 从单个回答 DOM 提取（用于手动勾选模式）。answer 容器要带 data-zop / data-za-detail-view-path-module=AnswerItem。
 export function parseAnswerElement(el: Element): CollectedAnswer | null {
   const zop = el.getAttribute('data-zop')

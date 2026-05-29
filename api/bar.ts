@@ -8,7 +8,7 @@ const MAX_TABLES = 5
 const SEATS_PER_TABLE = 6
 const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 30
 
-const TECH_TOPICS = [
+const FALLBACK_TOPICS = [
   'AI 大模型是否正在取代人类的创造力？',
   '脑机接口技术的普及，是人类进化还是异化？',
   '量子计算突破之后，密码学将何去何从？',
@@ -17,6 +17,47 @@ const TECH_TOPICS = [
   '数字人类：当AI能完美模拟一个人，我们还剩什么？',
   '开源 AI 是人类之福还是潘多拉魔盒？'
 ]
+
+async function fetchZhihuHotTopics(hours = 24): Promise<string[]> {
+  const DEVELOPER_BASE = 'https://developer.zhihu.com'
+  const appSecret = (process.env.ZHIHU_APP_SECRET || '').trim()
+  if (!appSecret) return []
+  try {
+    const url = new URL(`${DEVELOPER_BASE}/api/v1/content/hot_list`)
+    url.searchParams.set('hours', String(hours))
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${appSecret}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
+    })
+    if (!res.ok) return []
+    const j: any = await res.json()
+    if (j.Code !== 0 && j.code !== 0) return []
+    const items: any[] = j.Data?.Items || j.data?.items || j.data || []
+    return items
+      .map((it: any) => it.Title || it.title || it.question?.title || '')
+      .filter(Boolean)
+      .slice(0, 20)
+  } catch {
+    return []
+  }
+}
+
+async function pickAcademicTopic(hotTopics: string[], dateKey: string): Promise<string> {
+  if (hotTopics.length === 0) {
+    return FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)]
+  }
+  const prompt = `今天是 ${dateKey}，以下是知乎今日热榜话题：\n${hotTopics.slice(0, 15).map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\n请从中选择一个最具学术探讨价值的话题，或基于其中一个话题改写成更适合学术讨论的议题（30字以内）。学术酒吧的议题应该能引发多角度的知识性讨论，而不仅仅是情绪宣泄。\n\n只输出议题文本，不要任何前缀或解释。`
+  try {
+    const result = await chatCompletion([{ role: 'user', content: prompt }], { temperature: 0.7 })
+    return (result.content || '').trim().replace(/^["「【]|["」】]$/g, '').slice(0, 80) ||
+      FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)]
+  } catch {
+    return FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)]
+  }
+}
 
 function getTodayKey(): string {
   return new Date().toISOString().slice(0, 10)
@@ -49,25 +90,9 @@ async function ensureTodayTopic(supabase: any): Promise<any> {
     return null
   }
 
-  // Generate topic using AI
-  const pastTopics = TECH_TOPICS.slice(0, 3).join('、')
-  const prompt = `你是一个学术酒吧的话题策划人。今天是 ${dateKey}，请生成一个适合知识分子讨论的当下热点议题。
-
-议题要求：
-1. 与科技、AI、社会变革相关
-2. 有一定争议性，能引发多角度讨论
-3. 长度30字以内
-4. 不要重复：${pastTopics}
-
-只输出议题本身，不要任何前缀。`
-
-  let topic = ''
-  try {
-    const result = await chatCompletion([{ role: 'user', content: prompt }], { temperature: 0.9 })
-    topic = (result.content || '').trim().replace(/^["「]|["」]$/g, '').slice(0, 80)
-  } catch {
-    topic = TECH_TOPICS[Math.floor(Math.random() * TECH_TOPICS.length)]
-  }
+  // Fetch hot topics and pick the most academic one
+  const hotTopics = await fetchZhihuHotTopics(24)
+  const topic = await pickAcademicTopic(hotTopics, dateKey)
 
   const status = isBarActive() ? 'active' : 'open'
   const { data: created } = await supabase

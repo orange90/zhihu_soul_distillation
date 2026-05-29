@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import SkillCard from '../components/SkillCard'
 
 type Answer = {
   answer_id: string
@@ -43,6 +44,8 @@ export default function MyDistillationsPage() {
   const [distilling, setDistilling] = useState(false)
   const [distillError, setDistillError] = useState<string | null>(null)
   const [skillModal, setSkillModal] = useState(false)
+  const [cardModal, setCardModal] = useState(false)
+  const [me, setMe] = useState<{ id?: string; name?: string; avatar_url?: string } | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -63,7 +66,10 @@ export default function MyDistillationsPage() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    api.me().then(r => setMe(r.user || null)).catch(() => {})
+  }, [])
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -156,6 +162,12 @@ export default function MyDistillationsPage() {
                 className="mt-2 text-zhihu-blue hover:underline"
               >
                 查看 Skill 文档
+              </button>
+              <button
+                onClick={() => setCardModal(true)}
+                className={`mt-1 text-xs font-medium hover:underline ${ratingCfg?.color}`}
+              >
+                导出蒸馏卡片
               </button>
             </div>
           </div>
@@ -267,6 +279,19 @@ export default function MyDistillationsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Skill Card Export */}
+      {cardModal && result && (
+        <SkillCard
+          userName={me?.name || '知乎用户'}
+          userAvatar={me?.avatar_url}
+          userId={me?.id}
+          rating={result.rating}
+          ratingScore={result.rating_score}
+          skillDesc={result.skill_desc}
+          onClose={() => setCardModal(false)}
+        />
       )}
 
       {/* Skill Modal */}
