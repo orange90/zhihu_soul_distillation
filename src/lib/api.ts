@@ -123,7 +123,22 @@ async function distillStream(
 }
 
 export const api = {
-  me: () => jsonFetch<{ user: { id: string; name: string; avatar_url?: string; opted_out?: boolean } | null }>('/api/auth/me'),
+  me: () =>
+    jsonFetch<{
+      user: {
+        id: string
+        name: string
+        avatar_url?: string
+        opted_out?: boolean
+        upload_count?: number
+      } | null
+    }>('/api/auth/me'),
+
+  pluginToken: () =>
+    jsonFetch<{ token: string; user: { id: string; name: string; avatar_url?: string } }>(
+      '/api/auth/plugin-token',
+      { method: 'POST' }
+    ),
   optout: (action: 'add' | 'remove') =>
     jsonFetch<{ opted_out: boolean }>('/api/optout', {
       method: 'POST',

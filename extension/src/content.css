@@ -1,0 +1,90 @@
+.zsd-toolbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 2147483600;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid rgba(15, 136, 235, 0.4);
+  border-radius: 999px;
+  box-shadow: 0 12px 32px rgba(15, 136, 235, 0.18);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  max-width: min(960px, calc(100vw - 32px));
+}
+.zsd-toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.zsd-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #0f88eb;
+}
+.zsd-toolbar-logo { font-size: 16px; }
+.zsd-toolbar-status {
+  min-width: 220px;
+  max-width: 360px;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.zsd-toolbar-status[data-kind='ok'] { color: #047857; }
+.zsd-toolbar-status[data-kind='err'] { color: #b91c1c; }
+.zsd-toolbar-actions {
+  display: flex;
+  gap: 6px;
+}
+.zsd-btn {
+  background: #f3f4f6;
+  color: #1a1a1a;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zsd-btn:hover { background: #e5e7eb; }
+.zsd-btn-primary {
+  background: #0f88eb;
+  color: white;
+}
+.zsd-btn-primary:hover { background: #0c6fc1; }
+.zsd-btn-ghost {
+  background: transparent;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+.zsd-btn-ghost:hover { color: #1a1a1a; background: #f9fafb; }
+
+.zsd-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 1px solid rgba(15, 136, 235, 0.4);
+  border-radius: 999px;
+  font-size: 12px;
+  background: white;
+  color: #0f88eb;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.zsd-checkbox:hover { background: rgba(15, 136, 235, 0.05); }
+.zsd-checkbox-tick {
+  opacity: 0;
+  font-weight: 700;
+}
+.zsd-checkbox.zsd-checked {
+  background: #0f88eb;
+  color: white;
+}
+.zsd-checkbox.zsd-checked .zsd-checkbox-tick { opacity: 1; }

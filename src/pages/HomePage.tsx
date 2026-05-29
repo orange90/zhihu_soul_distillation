@@ -4,10 +4,21 @@ import { api } from '../lib/api'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const [user, setUser] = useState<{ id: string; name: string; avatar_url?: string; opted_out?: boolean } | null>(null)
+  const [user, setUser] = useState<{
+    id: string
+    name: string
+    avatar_url?: string
+    opted_out?: boolean
+    upload_count?: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [optOutLoading, setOptOutLoading] = useState(false)
   const [optOutError, setOptOutError] = useState<string | null>(null)
+  const [pluginModal, setPluginModal] = useState(false)
+  const [pluginToken, setPluginToken] = useState<string | null>(null)
+  const [pluginTokenLoading, setPluginTokenLoading] = useState(false)
+  const [pluginTokenError, setPluginTokenError] = useState<string | null>(null)
+  const [pluginTokenCopied, setPluginTokenCopied] = useState(false)
 
   useEffect(() => {
     api
@@ -29,6 +40,35 @@ export default function HomePage() {
       setOptOutError(String(e?.message || e))
     } finally {
       setOptOutLoading(false)
+    }
+  }
+
+  const openPluginModal = async () => {
+    setPluginModal(true)
+    setPluginTokenCopied(false)
+    if (pluginToken) return
+    setPluginTokenLoading(true)
+    setPluginTokenError(null)
+    try {
+      const r = await api.pluginToken()
+      setPluginToken(r.token)
+    } catch (e: any) {
+      setPluginTokenError(String(e?.message || e))
+    } finally {
+      setPluginTokenLoading(false)
+    }
+  }
+
+  const copyPluginToken = async () => {
+    if (!pluginToken) return
+    try {
+      await navigator.clipboard.writeText(pluginToken)
+      setPluginTokenCopied(true)
+      setTimeout(() => setPluginTokenCopied(false), 2000)
+    } catch {
+      // 兜底：选中
+      const ta = document.getElementById('plugin-token-textarea') as HTMLTextAreaElement | null
+      ta?.select()
     }
   }
 
@@ -98,7 +138,105 @@ export default function HomePage() {
             操作失败：{optOutError}
           </div>
         )}
+
+        {user && (
+          <div className="mt-8 mx-auto max-w-2xl rounded-xl border border-zhihu-blue/30 bg-white/70 backdrop-blur p-4 text-left">
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-9 h-9 rounded-lg bg-zhihu-blue/10 text-zhihu-blue flex items-center justify-center text-lg">🔌</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-zhihu-ink">
+                  浏览器插件：把你自己的知乎沉淀变成个人 AI Skill
+                </div>
+                <div className="mt-1 text-xs text-gray-600 leading-relaxed">
+                  知乎没有"按答主拉全部回答"的公开 API，导致搜索蒸馏出来的画像总是欠缺细节。
+                  装上浏览器插件，到你自己的主页一键勾选 / 批量上传，蒸馏直接基于你本人的原始回答，
+                  生成只属于你的 Skill 文档。
+                  {typeof user.upload_count === 'number' && user.upload_count > 0 && (
+                    <span className="ml-1 text-zhihu-blue font-medium">
+                      你已通过插件上传 {user.upload_count} 条原始回答。
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={openPluginModal}
+                    className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
+                  >
+                    获取插件 Token
+                  </button>
+                  <a
+                    href="/extension"
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs px-3 py-1.5 rounded-full border border-zhihu-blue/40 text-zhihu-blue hover:bg-zhihu-blue/5"
+                  >
+                    安装说明
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {pluginModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPluginModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-zhihu-ink">浏览器插件 Token</h3>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setPluginModal(false)}
+                className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500"
+              >
+                ×
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+              复制下方 Token，粘贴到插件 popup 的"Token"输入框即可。Token 等效于你的登录态，请勿外传。
+              当你在网页端登出后请重新获取一次。
+            </p>
+            {pluginTokenLoading && (
+              <div className="mt-4 text-sm text-gray-500">生成中…</div>
+            )}
+            {pluginTokenError && (
+              <div className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                生成失败：{pluginTokenError}
+              </div>
+            )}
+            {pluginToken && (
+              <>
+                <textarea
+                  id="plugin-token-textarea"
+                  readOnly
+                  value={pluginToken}
+                  className="mt-4 w-full h-24 text-xs font-mono rounded-md border border-gray-200 bg-gray-50 p-2 outline-none focus:border-zhihu-blue"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={copyPluginToken}
+                    className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
+                  >
+                    {pluginTokenCopied ? '已复制 ✓' : '复制 Token'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="relative mt-16 grid md:grid-cols-3 gap-4">
         {[

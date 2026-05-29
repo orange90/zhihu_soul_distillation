@@ -256,12 +256,45 @@ type DistillStep =
 
 type StepPayload = { step: DistillStep; meta?: Record<string, any> }
 
+type UploadedAnswerRow = {
+  answer_id: string
+  title: string | null
+  content: string
+  excerpt: string | null
+  voteup_count: number | null
+  url: string | null
+}
+
+async function loadUploadedAnswers(uploaderId: string): Promise<ZhihuSearchAnswer[]> {
+  const supabase = getSupabase()
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('user_uploaded_answers')
+    .select('answer_id,title,content,excerpt,voteup_count,url')
+    .eq('uploader_id', uploaderId)
+    .order('voteup_count', { ascending: false })
+    .limit(50)
+  if (error) {
+    console.warn('[distill] load uploaded answers failed', error)
+    return []
+  }
+  return (data || []).map((r: UploadedAnswerRow) => ({
+    id: r.answer_id,
+    title: r.title || '',
+    content: r.content || '',
+    excerpt: r.excerpt || (r.content ? r.content.slice(0, 240) : ''),
+    voteup_count: Number(r.voteup_count) || 0,
+    url: r.url || ''
+  })) as ZhihuSearchAnswer[]
+}
+
 async function distillOne(
   author: IncomingAuthor,
   onStep?: (p: StepPayload) => void,
-  opts: { force?: boolean } = {}
+  opts: { force?: boolean; uploaderId?: string } = {}
 ): Promise<{ skills: AuthorSkills; fromCache: boolean }> {
   const supabase = getSupabase()
+  const isSelfUploadCandidate = !!(opts.uploaderId && opts.uploaderId === author.id)
 
   if (supabase) {
     const { data: blocked, error: blockedError } = await supabase
@@ -289,8 +322,11 @@ async function distillOne(
 
     if (data && data.updated_at) {
       const age = Date.now() - new Date(data.updated_at).getTime()
+      const cachedSource = (data as any).source || 'search'
+      // 自己上传素材但缓存还是旧的 search 版本时，不命中缓存，让它重新基于上传素材蒸馏
+      const staleForSelfUpload = isSelfUploadCandidate && cachedSource !== 'self_upload'
       // 仅当命中缓存且已经有 skill_markdown 时才直接复用；否则穿透到重新蒸馏
-      if (age < SKILLS_TTL_MS && data.skill_markdown) {
+      if (age < SKILLS_TTL_MS && data.skill_markdown && !staleForSelfUpload) {
         const cached = data as AuthorSkills
         // 旧记录可能没有 skill_desc，补一次摘要并写回（不影响主流程，失败也无所谓）
         if (!cached.skill_desc || !cached.skill_desc.trim()) {
@@ -326,11 +362,23 @@ async function distillOne(
 
   onStep?.({ step: 'fetch_answers' })
   let answers: ZhihuSearchAnswer[] = []
-  try {
-    answers = await searchByAuthor(author.name, SEARCH_FETCH)
-  } catch (e) {
-    console.warn('search failed for', author.name, e)
+  let answerSource: 'search' | 'self_upload' = 'search'
+
+  if (isSelfUploadCandidate) {
+    const uploaded = await loadUploadedAnswers(opts.uploaderId!)
+    if (uploaded.length > 0) {
+      answers = uploaded
+      answerSource = 'self_upload'
+    }
   }
+  if (answers.length === 0) {
+    try {
+      answers = await searchByAuthor(author.name, SEARCH_FETCH)
+    } catch (e) {
+      console.warn('search failed for', author.name, e)
+    }
+  }
+
   const usableAnswers = answers.filter(
     (a) => (a.content && a.content.trim().length > 0) || (a.excerpt && a.excerpt.trim().length > 0)
   )
@@ -340,12 +388,18 @@ async function distillOne(
   )
   const sourceCounts: Record<string, number> = {}
   for (const a of usableAnswers) {
-    const src = (a as any).source || 'zhihu_search'
+    const src = answerSource === 'self_upload' ? 'plugin_upload' : ((a as any).source || 'zhihu_search')
     sourceCounts[src] = (sourceCounts[src] || 0) + 1
   }
   onStep?.({
     step: 'fetch_answers_done',
-    meta: { count: usableAnswers.length, raw_count: answers.length, chars: totalChars, sources: sourceCounts }
+    meta: {
+      count: usableAnswers.length,
+      raw_count: answers.length,
+      chars: totalChars,
+      sources: sourceCounts,
+      answer_source: answerSource
+    }
   })
 
   if (usableAnswers.length === 0 || totalChars < 200) {
@@ -443,6 +497,7 @@ async function distillOne(
           skill_desc: skills.skill_desc ?? '',
           weight_score: skills.weight_score ?? 0,
           raw_answers: skills.raw_answers ?? [],
+          source: answerSource,
           updated_at: skills.updated_at
         },
         { onConflict: 'author_id' }
@@ -460,6 +515,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return badRequest(res, 'method not allowed')
     const session = readSession(req)
     if (!session) return unauthorized(res)
+    const uploaderId = session.user_id
 
     const body = await readBody<{ authors: IncomingAuthor[]; force?: boolean }>(req)
     const authors = (body.authors || []).filter((a) => a && a.id && a.name)
@@ -503,7 +559,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               (p) => {
                 send('step', { author_id: a.id, step: p.step, meta: p.meta || {} })
               },
-              { force }
+              { force, uploaderId }
             )
             skills.push(s)
             cacheHits[s.author_id] = fromCache
@@ -539,7 +595,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const errors: Array<{ author_id: string; message: string }> = []
     for (const a of authors) {
       try {
-        const { skills: s, fromCache } = await distillOne(a, undefined, { force })
+        const { skills: s, fromCache } = await distillOne(a, undefined, { force, uploaderId })
         skills.push(s)
         cacheHits[s.author_id] = fromCache
       } catch (e: any) {

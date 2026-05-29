@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>知识蒸馏馆</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <span class="logo">🧪</span>
+        <span class="brand">知识蒸馏馆</span>
+      </div>
+      <p class="hint">
+        到自己的知乎主页（<code>zhihu.com/people/&lt;你&gt;</code>）勾选回答或点「一键批量抓取」，
+        然后通过本插件上传到蒸馏馆。
+      </p>
+
+      <section>
+        <label class="label" for="apiBase">后端地址</label>
+        <input id="apiBase" class="input" placeholder="http://localhost:3000" />
+      </section>
+
+      <section>
+        <label class="label" for="token">插件 Token</label>
+        <textarea
+          id="token"
+          class="input mono"
+          rows="4"
+          placeholder="在蒸馏馆首页点「获取插件 Token」并粘贴到这里"
+        ></textarea>
+        <button id="save" class="btn primary">保存配置</button>
+      </section>
+
+      <section>
+        <button id="ping" class="btn">校验登录态</button>
+        <button id="open-app" class="btn ghost">打开蒸馏馆</button>
+      </section>
+
+      <div id="status" class="status"></div>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
