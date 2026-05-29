@@ -244,7 +244,8 @@ async function finalizeDebate(supabase: any, topic: any, turns: DebateTurn[]): P
     .from('arena_participants')
     .select('user_id, user_name, user_avatar, side')
     .eq('topic_id', topic.id)
-  const weekKey = topic.week_key
+  // topic.week_key 存的是日期字符串（YYYY-MM-DD），需转换为 ISO 周键以匹配排行榜查询
+  const weekKey = getWeekKey(new Date(topic.week_key))
   for (const p of (participants || [])) {
     if (isBotUserId(p.user_id)) continue
     const delta = p.side === winner ? 2 : -1
