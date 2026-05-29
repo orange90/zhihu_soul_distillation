@@ -67,12 +67,12 @@ function DebateTable({
           const isActive = activeSpeaker === (i + 1)
           return (
             <div key={i} className="flex flex-col items-center gap-1 relative">
-              {isTop && isActive && bubbleContent && (
-                <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-48 md:w-64 z-10">
-                  <div className="bg-white rounded-2xl rounded-bl-sm shadow-xl border border-gray-200 p-3 text-xs text-gray-700 leading-relaxed animate-fade-in">
+              {isActive && bubbleContent && (
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 md:w-64 z-20 pointer-events-none">
+                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-3 text-xs text-gray-700 leading-relaxed animate-fade-in">
                     {bubbleContent}
                   </div>
-                  <div className="absolute bottom-0 left-6 w-3 h-3 bg-white border-b border-r border-gray-200 rotate-45 translate-y-1/2" />
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-gray-200 rotate-45 translate-y-1/2" />
                 </div>
               )}
               <div className={`relative transition-transform ${isActive ? 'scale-110' : ''}`}>
@@ -89,14 +89,6 @@ function DebateTable({
                   {label}{i === 0 ? '一辩' : i === 1 ? '二辩' : '三辩'}
                 </div>
               </div>
-              {!isTop && isActive && bubbleContent && (
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 translate-y-full w-48 md:w-64 z-10">
-                  <div className="absolute top-0 left-6 w-3 h-3 bg-white border-t border-l border-gray-200 rotate-45 -translate-y-1/2" />
-                  <div className="bg-white rounded-2xl rounded-tl-sm shadow-xl border border-gray-200 p-3 text-xs text-gray-700 leading-relaxed animate-fade-in">
-                    {bubbleContent}
-                  </div>
-                </div>
-              )}
             </div>
           )
         })}
