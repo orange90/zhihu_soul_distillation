@@ -36,6 +36,14 @@ const BUBBLE_STYLE = 'bg-sky-50 border-sky-300 text-sky-900'
 const AVATAR_BG = 'bg-sky-500'
 const RING_COLOR = 'ring-sky-300'
 
+type HistoryRecord = {
+  id: string
+  question: string
+  author_names: string[]
+  result: DebateResult
+  created_at: string
+}
+
 export default function DebatePage() {
   const navigate = useNavigate()
   const [persona, setPersona] = useState<Persona | null>(null)
@@ -44,6 +52,9 @@ export default function DebatePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [debate, setDebate] = useState<DebateResult | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([])
 
   useEffect(() => {
     const p = getJSON<Persona>('persona')
@@ -68,6 +79,20 @@ export default function DebatePage() {
     })
     return m
   }, [persona])
+
+  const openHistory = async () => {
+    setShowHistory(true)
+    if (historyRecords.length > 0) return
+    setHistoryLoading(true)
+    try {
+      const data = await api.debateHistory()
+      setHistoryRecords(data.records)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const startDebate = async (q: string) => {
     if (!persona || !q.trim() || loading) return
@@ -102,6 +127,9 @@ export default function DebatePage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button className="btn-ghost" onClick={openHistory}>
+            历史记录
+          </button>
           <button className="btn-ghost" onClick={() => navigate('/result')}>
             返回集体人格
           </button>
@@ -200,6 +228,61 @@ export default function DebatePage() {
           <div className="mt-3 text-xs text-zhihu-gray">
             为避免 LLM 限流导致部分答主"沉默"，每轮最多 2 人同时发言，
             {rounds} 轮辩论 {persona.contributors.length} 人通常需要 30–90 秒，请耐心等待。
+          </div>
+        </div>
+      )}
+
+      {/* 历史记录抽屉 */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="flex-1 bg-black/40"
+            onClick={() => setShowHistory(false)}
+          />
+          <div className="w-80 bg-white h-full shadow-2xl overflow-y-auto flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between sticky top-0 bg-white">
+              <h3 className="font-semibold text-zhihu-ink">历史辩论记录</h3>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
+                加载中…
+              </div>
+            ) : historyRecords.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 text-sm text-gray-400 p-6 text-center">
+                <span className="text-3xl">📭</span>
+                <span>还没有辩论记录</span>
+                <span className="text-xs">完成一次辩论后，记录会出现在这里</span>
+              </div>
+            ) : (
+              <div className="flex-1 p-3 space-y-2">
+                {historyRecords.map(record => (
+                  <button
+                    key={record.id}
+                    className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-zhihu-blue/30 hover:bg-zhihu-blue-light transition-colors"
+                    onClick={() => {
+                      setDebate(record.result)
+                      setShowHistory(false)
+                    }}
+                  >
+                    <div className="text-[11px] text-gray-400">
+                      {record.created_at.slice(0, 10)}
+                    </div>
+                    <div className="text-sm font-medium text-zhihu-ink mt-0.5 line-clamp-2">
+                      {record.question}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 truncate">
+                      {record.author_names.join(' · ')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
