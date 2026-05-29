@@ -88,3 +88,26 @@
   color: white;
 }
 .zsd-checkbox.zsd-checked .zsd-checkbox-tick { opacity: 1; }
+
+.zsd-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  background: rgba(30, 30, 30, 0.92);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  max-width: 360px;
+  text-align: center;
+  animation: zsd-fade-in 0.2s ease;
+  pointer-events: none;
+}
+@keyframes zsd-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

@@ -15,35 +15,76 @@ function getWeekKey(date = new Date()): string {
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
 }
 
-async function ensureWeekTopics(supabase: any, weekKey: string) {
+function getDayKey(date = new Date()): string {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    .toISOString().slice(0, 10)
+}
+
+async function fetchZhihuHotList(hours = 24): Promise<string[]> {
+  const DEVELOPER_BASE = 'https://developer.zhihu.com'
+  const appSecret = (process.env.ZHIHU_APP_SECRET || '').trim()
+  if (!appSecret) return []
+  try {
+    const url = new URL(`${DEVELOPER_BASE}/api/v1/content/hot_list`)
+    url.searchParams.set('hours', String(hours))
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${appSecret}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      }
+    })
+    if (!res.ok) return []
+    const j: any = await res.json()
+    if (j.Code !== 0 && j.code !== 0) return []
+    const items: any[] = j.Data?.Items || j.data?.items || j.data || []
+    return items
+      .map((it: any) => it.Title || it.title || it.question?.title || '')
+      .filter(Boolean)
+      .slice(0, 20)
+  } catch {
+    return []
+  }
+}
+
+async function ensureDailyTopics(supabase: any, dayKey: string) {
   const { data: existing } = await supabase
     .from('arena_topics')
     .select('category')
-    .eq('week_key', weekKey)
+    .eq('week_key', dayKey)
   const existingCats = new Set((existing || []).map((t: any) => t.category))
   const missing = CATEGORIES.filter(c => !existingCats.has(c))
   if (missing.length === 0) return
 
-  const prompt = `你是一个辩论赛题目策划人。请为以下类别各生成一个高质量的辩论题目，话题应该具有争议性、思考深度，适合 2026 年当下的社会语境。
+  // Try to get hot list topics to inspire debate topics
+  const hotTopics = await fetchZhihuHotList(24)
+  const hotContext = hotTopics.length > 0
+    ? `\n\n参考今日知乎热榜话题（从中汲取灵感出辩题，要有正反方对立）：\n${hotTopics.slice(0, 10).map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+    : ''
+
+  const prompt = `你是一个辩论赛题目策划人。今天是 ${dayKey}，请为以下类别各生成一个辩论题目。
+要求：
+- 题目必须适合"正方 vs 反方"的二元对立辩论（不能是开放式问题）
+- 使用"应不应该"/"是不是"/"会不会"/"X 比 Y 更…"等可以明确站队的句式
+- 具有争议性和时代感，适合 2026 年当下语境
+- 每个类别独立成题${hotContext}
 
 类别：${missing.join('、')}
 
-对每个类别输出一个 JSON 对象，格式如下（所有类别放在同一个 JSON 数组中）：
+只输出 JSON 数组：
 [
   {
     "category": "类别名",
-    "title": "辩论题目（20字以内，以"应不应该"/"是不是"/"会不会"等形式）",
+    "title": "辩论题目（20字以内）",
     "affirmative_view": "正方立场（15字以内）",
     "negative_view": "反方立场（15字以内）"
   }
-]
-
-只输出 JSON 数组，不要其他内容。`
+]`
 
   try {
     const result = await chatCompletion(
       [{ role: 'user', content: prompt }],
-      { temperature: 0.8, timeoutMs: 30_000 }
+      { temperature: 0.85, timeoutMs: 30_000 }
     )
     const topics = extractFirstJson<Array<{
       category: string; title: string; affirmative_view: string; negative_view: string
@@ -54,7 +95,7 @@ async function ensureWeekTopics(supabase: any, weekKey: string) {
       title: t.title,
       affirmative_view: t.affirmative_view,
       negative_view: t.negative_view,
-      week_key: weekKey,
+      week_key: dayKey,
       status: 'open'
     }))
 
@@ -62,7 +103,6 @@ async function ensureWeekTopics(supabase: any, weekKey: string) {
       await supabase.from('arena_topics').insert(rows)
     }
   } catch (e) {
-    // Fallback to hardcoded topics if AI fails
     const fallbacks: Record<string, { title: string; affirmative_view: string; negative_view: string }> = {
       '人文': { title: 'AI 创作应被认定为真正的艺术吗', affirmative_view: '应该，AI 艺术代表创意新边界', negative_view: '不应该，真正艺术源于人类情感' },
       '科技': { title: '大模型的涌现能力是真实质变还是幻觉', affirmative_view: '是真实质变，代表智能新层级', negative_view: '是统计幻觉，本质仍是模式匹配' },
@@ -75,7 +115,7 @@ async function ensureWeekTopics(supabase: any, weekKey: string) {
       title: fallbacks[c].title,
       affirmative_view: fallbacks[c].affirmative_view,
       negative_view: fallbacks[c].negative_view,
-      week_key: weekKey,
+      week_key: dayKey,
       status: 'open'
     }))
     if (fallbackRows.length > 0) {
@@ -234,6 +274,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!supabase) return json(res, 503, { error: 'DB 未配置' })
 
     const weekKey = getWeekKey()
+    const dayKey = getDayKey()
 
     if (req.method === 'GET') {
       const { topicId, action } = req.query as Record<string, string>
@@ -267,13 +308,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
 
-      // List current week topics
-      await ensureWeekTopics(supabase, weekKey)
+      // List current day's topics (daily refresh)
+      await ensureDailyTopics(supabase, dayKey)
 
       const { data: topics } = await supabase
         .from('arena_topics')
         .select('id, category, title, affirmative_view, negative_view, week_key, status, winner, ai_judgement')
-        .eq('week_key', weekKey)
+        .eq('week_key', dayKey)
         .order('category')
 
       const { data: allParticipants } = await supabase

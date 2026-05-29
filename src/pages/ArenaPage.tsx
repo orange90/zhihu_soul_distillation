@@ -266,7 +266,21 @@ function TopicCard({
   const isFull = topic.aff_count >= 3 && topic.neg_count >= 3
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-blue-300 transition-colors shadow-sm">
+    <div className="relative bg-white rounded-2xl border border-gray-200 p-5 hover:border-blue-300 transition-colors shadow-sm overflow-hidden">
+      {topic.winner && (
+        <div className="absolute top-3 right-3 z-10 rotate-6 select-none pointer-events-none">
+          <div className={[
+            'text-xs font-black px-2 py-0.5 rounded border-2 shadow-sm',
+            topic.winner === 'affirmative'
+              ? 'text-blue-600 border-blue-500 bg-blue-50/90'
+              : topic.winner === 'negative'
+              ? 'text-orange-600 border-orange-500 bg-orange-50/90'
+              : 'text-gray-600 border-gray-400 bg-gray-50/90'
+          ].join(' ')}>
+            {topic.winner === 'affirmative' ? '正方获胜' : topic.winner === 'negative' ? '反方获胜' : '平局'}
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3 mb-3">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${catCls}`}>
           {topic.category}
@@ -398,10 +412,10 @@ export default function ArenaPage() {
     <div className="max-w-5xl mx-auto px-4 py-10">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/')} className="text-gray-400 hover:text-zhihu-blue text-sm">← 返回</button>
+        <button onClick={() => navigate('/')} className="text-gray-500 hover:text-zhihu-blue text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:border-zhihu-blue/40 hover:bg-blue-50 transition-colors">← 返回</button>
         <div>
           <h1 className="text-2xl font-bold text-zhihu-ink">新知辩论场</h1>
-          <div className="text-xs text-gray-500 mt-0.5">本周 {weekKey} · 5 场辩论，用你的数字分身参战</div>
+          <div className="text-xs text-gray-500 mt-0.5">今日 {weekKey} · 5 场辩论，每日更新，用你的数字分身参战</div>
         </div>
         <button
           onClick={() => navigate('/leaderboard')}
