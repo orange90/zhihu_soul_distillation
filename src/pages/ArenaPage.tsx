@@ -365,26 +365,32 @@ export default function ArenaPage() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [weekKey, setWeekKey] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar_url?: string } | null>(null)
   const [joiningTopic, setJoiningTopic] = useState<string | null>(null)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [viewingTopic, setViewingTopic] = useState<(Topic & { debate_transcript?: Turn[] }) | null>(null)
   const [viewParticipants, setViewParticipants] = useState<Participant[]>([])
 
   useEffect(() => {
-    api.me().then(r => setCurrentUserId(r.user?.id || null)).catch(() => {})
+    api.me().then(r => {
+      if (r.user) {
+        setCurrentUserId(r.user.id)
+        setCurrentUser(r.user)
+      }
+    }).catch(() => {})
     loadTopics()
   }, [])
 
-  const loadTopics = async () => {
-    setLoading(true)
+  const loadTopics = async (opts?: { silent?: boolean; forceApi?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     try {
-      const data = await api.arena.list()
+      const data = await api.arena.list(opts?.forceApi)
       setTopics(data.topics)
       setWeekKey(data.week_key)
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
     }
   }
 
@@ -392,8 +398,28 @@ export default function ArenaPage() {
     setJoiningTopic(topicId)
     setJoinError(null)
     try {
-      await api.arena.join(topicId, side)
-      await loadTopics()
+      const result = await api.arena.join(topicId, side)
+      // Optimistic update: show avatar immediately without waiting for server refresh
+      if (currentUser) {
+        setTopics(prev => prev.map(t => {
+          if (t.id !== topicId) return t
+          const newParticipant: Participant = {
+            user_id: currentUser.id,
+            user_name: currentUser.name,
+            user_avatar: currentUser.avatar_url || null,
+            side,
+            debater_pos: result.debater_pos
+          }
+          return {
+            ...t,
+            participants: [...t.participants, newParticipant],
+            aff_count: side === 'affirmative' ? t.aff_count + 1 : t.aff_count,
+            neg_count: side === 'negative' ? t.neg_count + 1 : t.neg_count,
+          }
+        }))
+      }
+      // Silently sync from API (bypass static cache) to get authoritative state
+      loadTopics({ silent: true, forceApi: true })
     } catch (e: any) {
       setJoinError(e?.message || '加入失败')
     } finally {
@@ -473,7 +499,7 @@ export default function ArenaPage() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-2xl p-6 text-center shadow-xl">
             <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-3" />
-            <div className="text-sm text-gray-700">加入中，若人数已满将自动开始辩论（约需 30-60 秒）…</div>
+            <div className="text-sm text-gray-700">加入中…</div>
           </div>
         </div>
       )}
