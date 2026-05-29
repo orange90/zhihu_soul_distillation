@@ -11,6 +11,9 @@ export type SessionData = {
   access_token: string
   refresh_token?: string
   expires_at?: number
+  // 浏览器插件观察到的 zhihu.com/api/v4/me.url_token；与 OAuth 返回的 user_id 是不同 id 空间，
+  // 但都指向同一个真人。上传 / 蒸馏时两个 id 任一匹配即视为本人。
+  linked_url_token?: string
 }
 
 function getSecret(): string {

@@ -1,4 +1,4 @@
-import { getConfig } from './storage'
+import { getConfig, setConfig } from './storage'
 import type { CollectedAnswer } from './zhihu'
 
 export type UploadResponse = {
@@ -15,6 +15,47 @@ async function authHeaders(): Promise<Record<string, string>> {
     Authorization: `Bearer ${token}`,
     'X-Plugin-Version': chrome.runtime.getManifest().version
   }
+}
+
+// 把插件观察到的 zhihu url_token 上报给后端，换一份"烙进 linked_url_token"的新 bearer，
+// 后续上传时后端就能识别 author_id 与 OAuth uid 之外的另一种本人 id。
+// 幂等：若已为同一 url_token 链接过，直接返回当前配置。
+export async function ensureLinkedUrlToken(urlToken: string): Promise<{
+  linked: boolean
+  note: string
+}> {
+  const cfg = await getConfig()
+  if (!urlToken) return { linked: false, note: '未提供 url_token' }
+  if (!cfg.token) return { linked: false, note: '尚未配置 Token，先到 popup 粘贴后再来' }
+  if (cfg.linkedUrlToken === urlToken) return { linked: true, note: 'already linked' }
+
+  const url = `${cfg.apiBase}/api/auth/plugin-token`
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.token}`
+      },
+      credentials: 'include',
+      body: JSON.stringify({ url_token: urlToken })
+    })
+  } catch (e: any) {
+    return { linked: false, note: `link 请求失败：${e?.message || e}` }
+  }
+  const text = await res.text()
+  let json: any = {}
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok || !json.token) {
+    return { linked: false, note: json.error || `link ${res.status}：${text.slice(0, 160)}` }
+  }
+  await setConfig({ token: json.token, linkedUrlToken: urlToken })
+  return { linked: true, note: '已把当前知乎账号绑定到 Token' }
 }
 
 export async function pingMe(): Promise<{

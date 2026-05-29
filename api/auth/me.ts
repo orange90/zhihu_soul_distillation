@@ -32,6 +32,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return json(res, 200, {
-    user: { id: s.user_id, name: s.user_name, avatar_url: s.avatar_url, opted_out, upload_count }
+    user: {
+      id: s.user_id,
+      name: s.user_name,
+      avatar_url: s.avatar_url,
+      opted_out,
+      upload_count,
+      linked_url_token: s.linked_url_token || null
+    }
   })
 }

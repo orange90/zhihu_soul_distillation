@@ -55,8 +55,12 @@ $('ping').addEventListener('click', () => {
       setStatus('Token 已收到，但后端未识别登录态。请去蒸馏馆重新登录后再取一次 Token。', 'err')
       return
     }
-    const uc = typeof r.user.upload_count === 'number' ? `，累计 ${r.user.upload_count} 条上传` : ''
-    setStatus(`登录为 ${r.user.name}（id=${r.user.id}）${uc}`, 'ok')
+    const u = r.user
+    const uc = typeof u.upload_count === 'number' ? `，累计 ${u.upload_count} 条上传` : ''
+    const linked = u.linked_url_token
+      ? `\n已绑定 url_token：${u.linked_url_token}`
+      : '\n未绑定 url_token（去自己的知乎主页打开一次即可自动绑定）'
+    setStatus(`登录为 ${u.name}（OAuth id=${u.id}）${uc}${linked}`, 'ok')
   })
 })
 

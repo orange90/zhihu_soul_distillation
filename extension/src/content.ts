@@ -15,6 +15,25 @@ async function ensureMe() {
   } catch (e) {
     console.warn('[zsd] fetchMe failed', e)
   }
+  // 把 url_token 上报给后端，换一份带 linked_url_token 的新 bearer——
+  // 这样后端在 upload-answers 校验时能识别 OAuth uid 之外的另一种"本人" id 形态。
+  if (STATE.me?.url_token) {
+    try {
+      const reply = await new Promise<any>((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: 'ensure_link', url_token: STATE.me!.url_token },
+          (r) => resolve(r)
+        )
+      })
+      if (reply?.ok && reply.result?.linked) {
+        console.log('[zsd] linked url_token to backend session:', reply.result.note)
+      } else if (reply && !reply.ok) {
+        console.warn('[zsd] link failed:', reply.error)
+      }
+    } catch (e) {
+      console.warn('[zsd] ensure_link error', e)
+    }
+  }
   return STATE.me
 }
 
