@@ -7,12 +7,6 @@ type Participant = {
   side: string; debater_pos: number
 }
 
-type Turn = {
-  side: string; position: number; round: number
-  user_id: string; user_name: string; user_avatar: string
-  content: string
-}
-
 type Topic = {
   id: string; category: string; title: string
   affirmative_view: string; negative_view: string
@@ -34,220 +28,6 @@ function Avatar({ url, name, size = 10 }: { url?: string | null; name: string; s
   return (
     <div className={`w-${size} h-${size} rounded-full bg-zhihu-blue flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow`}>
       {name.slice(0, 1)}
-    </div>
-  )
-}
-
-function DebateTable({
-  label,
-  side,
-  participants,
-  currentTurn,
-  isTop
-}: {
-  label: string
-  side: 'affirmative' | 'negative'
-  participants: Participant[]
-  currentTurn: Turn | null
-  isTop: boolean
-}) {
-  const sideParts = participants.filter(p => p.side === side).sort((a, b) => a.debater_pos - b.debater_pos)
-  const speakers = [1, 2, 3].map(pos => sideParts.find(p => p.debater_pos === pos))
-  const activeSpeaker = currentTurn?.side === side ? currentTurn.position : null
-
-  const bubbleContent = currentTurn?.side === side ? currentTurn.content : null
-
-  const tableStyle = 'bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl border border-blue-500 shadow-lg'
-
-  return (
-    <div className={`flex flex-col items-center ${!isTop ? 'flex-col-reverse' : ''} gap-3`}>
-      {/* Avatars */}
-      <div className="flex gap-4 md:gap-6 justify-center">
-        {speakers.map((p, i) => {
-          const isActive = activeSpeaker === (i + 1)
-          return (
-            <div key={i} className="flex flex-col items-center gap-1 relative">
-              {isActive && bubbleContent && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 md:w-64 z-20 pointer-events-none">
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-3 text-xs text-gray-700 leading-relaxed animate-fade-in">
-                    {bubbleContent}
-                  </div>
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-gray-200 rotate-45 translate-y-1/2" />
-                </div>
-              )}
-              <div className={`relative transition-transform ${isActive ? 'scale-110' : ''}`}>
-                <Avatar url={p?.user_avatar} name={p?.user_name || '?'} size={12} />
-                {isActive && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-pulse" />
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] font-medium text-gray-700 truncate max-w-[60px]">
-                  {p?.user_name || (i === 0 ? '一辩' : i === 1 ? '二辩' : '三辩')}
-                </div>
-                <div className="text-[9px] text-gray-500">
-                  {label}{i === 0 ? '一辩' : i === 1 ? '二辩' : '三辩'}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Table */}
-      <div className={`${tableStyle} px-8 py-4 w-64 md:w-80 text-center`}>
-        <div className="text-white/60 text-xs mb-1">{side === 'affirmative' ? '正方' : '反方'}</div>
-        <div className="text-white font-bold text-sm">{label}</div>
-        <div className="text-white/70 text-xs mt-1">
-          {side === 'affirmative' ? '支持' : '反对'}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DebateView({ topic, participants }: { topic: Topic; participants: Participant[] }) {
-  const turns: Turn[] = (topic as any).debate_transcript || []
-  const [currentTurnIdx, setCurrentTurnIdx] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(true)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const intervalRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (!isPlaying) return
-    // 已播到当前已生成发言的末尾：若辩论仍在生成，则原地等待新发言（轮询会补齐 turns 后自动续播）；
-    // 注意这里不要 setIsPlaying(false)，否则后续到达的发言不会再自动播放。
-    if (currentTurnIdx >= turns.length) return
-    const delay = Math.max(3000, (turns[currentTurnIdx]?.content.length || 0) * 60)
-    intervalRef.current = window.setTimeout(() => {
-      setCurrentTurnIdx(i => i + 1)
-    }, delay)
-    return () => { if (intervalRef.current) clearTimeout(intervalRef.current) }
-  }, [currentTurnIdx, isPlaying, turns])
-
-  const isGenerating = topic.status === 'debating'
-  const caughtUp = currentTurnIdx >= turns.length
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current.querySelector(`[data-idx="${currentTurnIdx}"]`)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-  }, [currentTurnIdx])
-
-  const currentTurn = turns[currentTurnIdx] || null
-
-  const roundLabel = (r: number) => r === 1 ? '开场陈词' : r === 2 ? '交锋反驳' : '总结收尾'
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Arena stage */}
-      <div className="relative bg-gradient-to-b from-blue-950 to-blue-900 rounded-3xl p-6 md:p-8">
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'
-        }} />
-        <div className="relative">
-          {/* Desktop: left-right layout */}
-          <div className="hidden md:flex items-center justify-between gap-6">
-            <DebateTable label="正方" side="affirmative" participants={participants} currentTurn={currentTurn} isTop={true} />
-            <div className="text-center flex-1">
-              <div className="text-blue-300 text-xs font-medium mb-1">新知辩论场</div>
-              <div className="text-white text-sm font-bold leading-snug">{topic.title}</div>
-              {currentTurn && (
-                <div className="mt-3 text-blue-200 text-xs animate-pulse">
-                  第 {currentTurn.round} 轮 · {roundLabel(currentTurn.round)}
-                </div>
-              )}
-              {isGenerating && caughtUp && (
-                <div className="mt-2 text-blue-200 text-xs animate-pulse">
-                  {turns.length === 0 ? '辩手就位，正在生成开场陈词…' : '正在生成下一条发言…'}
-                </div>
-              )}
-            </div>
-            <DebateTable label="反方" side="negative" participants={participants} currentTurn={currentTurn} isTop={false} />
-          </div>
-
-          {/* Mobile: top-bottom layout */}
-          <div className="md:hidden flex flex-col gap-6">
-            <div className="text-center">
-              <div className="text-blue-300 text-xs font-medium mb-1">新知辩论场</div>
-              <div className="text-white text-sm font-bold">{topic.title}</div>
-            </div>
-            <DebateTable label="正方" side="affirmative" participants={participants} currentTurn={currentTurn} isTop={true} />
-            <DebateTable label="反方" side="negative" participants={participants} currentTurn={currentTurn} isTop={false} />
-          </div>
-        </div>
-      </div>
-
-      {/* Playback controls */}
-      {turns.length > 0 && (
-        <div className="flex items-center justify-between bg-white rounded-xl border p-3">
-          <span className="text-xs text-gray-500">
-            {currentTurnIdx}/{turns.length} 条发言
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentTurnIdx(i => Math.max(0, i - 1))}
-              className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-50"
-            >← 上一条</button>
-            <button
-              onClick={() => setIsPlaying(p => !p)}
-              className="text-xs px-3 py-1 rounded-full bg-zhihu-blue text-white"
-            >{isPlaying ? '暂停' : '播放'}</button>
-            <button
-              onClick={() => setCurrentTurnIdx(i => Math.min(turns.length - 1, i + 1))}
-              className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-50"
-            >下一条 →</button>
-          </div>
-        </div>
-      )}
-
-      {/* Winner announcement */}
-      {topic.winner && (
-        <div className="rounded-xl border-2 border-yellow-300 bg-yellow-50 p-4">
-          <div className="text-center font-bold text-yellow-800 text-lg mb-1">
-            🏆 {topic.winner === 'affirmative' ? '正方获胜' : topic.winner === 'negative' ? '反方获胜' : '平局'}
-          </div>
-          <div className="text-sm text-yellow-700 text-center">{topic.ai_judgement}</div>
-        </div>
-      )}
-
-      {/* Full transcript */}
-      <div className="bg-white rounded-xl border">
-        <div className="p-4 border-b flex items-center justify-between">
-          <span className="font-medium text-sm text-zhihu-ink">完整辩论记录</span>
-          <span className="text-xs text-gray-400">
-            {turns.length} 条发言{isGenerating && <span className="ml-1 text-amber-500 animate-pulse">· 生成中…</span>}
-          </span>
-        </div>
-        <div ref={scrollRef} className="max-h-80 overflow-y-auto p-3 space-y-3">
-          {turns.length === 0 && (
-            <div className="text-center text-xs text-gray-400 py-8">
-              {isGenerating ? '辩手正在组织语言，发言将陆续出现…' : '暂无发言'}
-            </div>
-          )}
-          {turns.map((t, i) => (
-            <div
-              key={i}
-              data-idx={i}
-              className={[
-                'rounded-lg p-3 text-sm transition-colors',
-                i === currentTurnIdx ? 'bg-zhihu-blue-light ring-2 ring-zhihu-blue/30' : 'bg-gray-50',
-                t.side === 'affirmative' ? '' : 'border-l-2 border-orange-200'
-              ].join(' ')}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <Avatar url={t.user_avatar} name={t.user_name} size={5} />
-                <span className="font-medium text-xs text-zhihu-ink">{t.user_name}</span>
-                <span className="text-[10px] text-gray-400">
-                  {t.side === 'affirmative' ? '正方' : '反方'}{t.position}辩 · 第{t.round}轮
-                </span>
-              </div>
-              <p className="text-xs text-gray-700 leading-relaxed pl-7">{t.content}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
@@ -372,8 +152,6 @@ export default function ArenaPage() {
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar_url?: string } | null>(null)
   const [joiningTopic, setJoiningTopic] = useState<string | null>(null)
   const [joinError, setJoinError] = useState<string | null>(null)
-  const [viewingTopic, setViewingTopic] = useState<(Topic & { debate_transcript?: Turn[] }) | null>(null)
-  const [viewParticipants, setViewParticipants] = useState<Participant[]>([])
 
   useEffect(() => {
     api.me().then(r => {
@@ -423,28 +201,6 @@ export default function ArenaPage() {
     return () => { cancelled = true; clearInterval(timer) }
   }, [debatingIds])
 
-  // 正在观看的辩论若未完结，轮询补齐后续轮次的发言
-  const modalAdvancing = useRef(false)
-  useEffect(() => {
-    if (!viewingTopic || viewingTopic.status === 'completed') return
-    let cancelled = false
-    const tick = async () => {
-      if (modalAdvancing.current) return
-      modalAdvancing.current = true
-      try {
-        const data = await api.arena.getTopic(viewingTopic.id)
-        if (cancelled) return
-        setViewingTopic({ ...data.topic, debate_transcript: data.topic.debate_transcript || [] })
-        setViewParticipants(data.participants)
-      } catch { /* 忽略单次失败，下次轮询再试 */ } finally {
-        modalAdvancing.current = false
-      }
-    }
-    tick() // 打开后立即生成第一条，不必等首个轮询间隔
-    const timer = setInterval(tick, 6000)
-    return () => { cancelled = true; clearInterval(timer) }
-  }, [viewingTopic?.id, viewingTopic?.status])
-
   const handleJoin = async (topicId: string, side: 'affirmative' | 'negative') => {
     setJoiningTopic(topicId)
     setJoinError(null)
@@ -478,10 +234,8 @@ export default function ArenaPage() {
     }
   }
 
-  const handleView = async (topic: Topic) => {
-    const data = await api.arena.getTopic(topic.id)
-    setViewingTopic({ ...data.topic, debate_transcript: data.topic.debate_transcript || [] })
-    setViewParticipants(data.participants)
+  const handleView = (topic: Topic) => {
+    navigate(`/arena/${topic.id}`)
   }
 
   return (
@@ -509,24 +263,6 @@ export default function ArenaPage() {
               去蒸馏
             </button>
           )}
-        </div>
-      )}
-
-      {/* Debate View Modal */}
-      {viewingTopic && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 overflow-y-auto p-4 md:p-8">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl">
-            <div className="flex items-center justify-between p-5 border-b">
-              <div>
-                <div className="text-xs text-gray-500 mb-0.5">{viewingTopic.category}</div>
-                <h2 className="font-bold text-zhihu-ink">{viewingTopic.title}</h2>
-              </div>
-              <button onClick={() => setViewingTopic(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
-            </div>
-            <div className="p-5">
-              <DebateView topic={viewingTopic} participants={viewParticipants} />
-            </div>
-          </div>
         </div>
       )}
 
