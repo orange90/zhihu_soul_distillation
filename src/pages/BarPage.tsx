@@ -244,16 +244,51 @@ export default function BarPage() {
     tableMap[s.table_num].push(s)
   }
 
+  const cornerBgs: Array<{
+    top?: number; bottom?: number; left?: number; right?: number
+    bgPos: string; maskPos: string
+  }> = [
+    { top: 0, left: 0, bgPos: 'top left', maskPos: '0% 0%' },
+    { top: 0, right: 0, bgPos: 'top right', maskPos: '100% 0%' },
+    { bottom: 0, left: 0, bgPos: 'bottom left', maskPos: '0% 100%' },
+    { bottom: 0, right: 0, bgPos: 'bottom right', maskPos: '100% 100%' },
+  ]
+
   return (
     <div className="min-h-screen" style={{
       background: 'linear-gradient(135deg, #0a0a1a 0%, #0d1b3e 40%, #111827 100%)'
     }}>
+      {/* Academic Bar background image - shown at 4 corners with feathered edges */}
+      {/* Place bar-bg.jpg in /public/bar-bg.jpg to enable this effect */}
+      {cornerBgs.map((corner, i) => (
+        <div
+          key={i}
+          className="fixed pointer-events-none"
+          style={{
+            top: corner.top,
+            bottom: corner.bottom,
+            left: corner.left,
+            right: corner.right,
+            width: '55%',
+            height: '58%',
+            backgroundImage: "url('/bar-bg.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: corner.bgPos,
+            backgroundRepeat: 'no-repeat',
+            WebkitMaskImage: `radial-gradient(ellipse 90% 90% at ${corner.maskPos}, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 45%, transparent 70%)`,
+            maskImage: `radial-gradient(ellipse 90% 90% at ${corner.maskPos}, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.4) 45%, transparent 70%)`,
+            zIndex: 0,
+          }}
+        />
+      ))}
+
       {/* Bar ambiance overlay */}
       <div className="fixed inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 20% 60%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 40%, rgba(139,92,246,0.06) 0%, transparent 50%)'
+        background: 'radial-gradient(ellipse at 20% 60%, rgba(59,130,246,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 40%, rgba(139,92,246,0.06) 0%, transparent 50%)',
+        zIndex: 1,
       }} />
 
-      <div className="relative max-w-6xl mx-auto px-4 py-8">
+      <div className="relative max-w-6xl mx-auto px-4 py-8" style={{ zIndex: 2 }}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => navigate('/')} className="text-blue-300/70 hover:text-blue-200 text-sm px-3 py-1.5 rounded-lg border border-blue-300/30 hover:border-blue-300/60 hover:bg-blue-300/10 transition-colors">← 返回</button>
@@ -286,7 +321,7 @@ export default function BarPage() {
                     {topic.topic}
                   </h2>
                   <div className="mt-2 text-blue-300/60 text-xs">
-                    晚上 8 点开始发言 · {sessions.length}/30 位吧友就坐
+                    晚上 8 点开始发言 · {sessions.length}/24 位吧友就坐
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
@@ -294,10 +329,10 @@ export default function BarPage() {
                     <>
                       <button
                         onClick={handleJoin}
-                        disabled={joining || sessions.length >= 30}
+                        disabled={joining || sessions.length >= 24}
                         className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
                       >
-                        {joining ? '加入中…' : sessions.length >= 30 ? '已满员' : '加入酒吧 🍺'}
+                        {joining ? '加入中…' : sessions.length >= 24 ? '已满员' : '加入酒吧 🍺'}
                       </button>
                       {joinError && (
                         <div className="text-xs text-red-400 max-w-[200px]">{joinError}
@@ -335,8 +370,8 @@ export default function BarPage() {
 
             {/* Bar layout - Tables */}
             <div className="mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 justify-items-center">
-                {[1, 2, 3, 4, 5].map(tableNum => (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 justify-items-center">
+                {[1, 2, 3, 4].map(tableNum => (
                   <div key={tableNum} className="rounded-2xl bg-white/3 backdrop-blur border border-white/8 p-5">
                     <BarTable
                       tableNum={tableNum}

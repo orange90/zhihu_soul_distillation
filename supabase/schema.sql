@@ -158,13 +158,14 @@ create table if not exists bar_sessions (
 );
 create index if not exists idx_bar_sessions_topic on bar_sessions (topic_id);
 
--- Helper function to increment arena score (upsert + increment)
+-- Helper function to adjust arena score by a delta (positive or negative)
+-- Win: +2, Loss: -1
 create or replace function increment_score(p_user_id text, p_week_key text)
 returns void language plpgsql as $$
 begin
   insert into user_scores (user_id, user_name, user_avatar, week_key, score, updated_at)
-  values (p_user_id, '', null, p_week_key, 1, now())
+  values (p_user_id, '', null, p_week_key, 2, now())
   on conflict (user_id, week_key)
-  do update set score = user_scores.score + 1, updated_at = now();
+  do update set score = user_scores.score + 2, updated_at = now();
 end;
 $$;

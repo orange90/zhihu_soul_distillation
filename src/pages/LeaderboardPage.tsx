@@ -58,7 +58,7 @@ function SharePoster({ user, rank, weekKey, onClose }: {
             <div className="text-blue-200 text-sm">{weekKey} 周积分榜</div>
           </div>
           <div className="border-t border-white/20 pt-4 text-blue-200 text-xs">
-            <div className="mb-1">用 AI 数字分身参加辩论，积累智识声誉</div>
+            <div className="mb-1">用 AI 数字分身参加辩论，赢 +2 / 负 -1</div>
             <div className="font-mono text-blue-300">zhihusoul.cn</div>
           </div>
         </div>
@@ -113,7 +113,7 @@ export default function LeaderboardPage() {
         <button onClick={() => navigate('/arena')} className="text-gray-400 hover:text-zhihu-blue text-sm">← 竞技场</button>
         <div>
           <h1 className="text-2xl font-bold text-zhihu-ink">🏆 周积分榜</h1>
-          <div className="text-xs text-gray-500 mt-0.5">{weekKey} · 辩论赢一场 +1 分</div>
+          <div className="text-xs text-gray-500 mt-0.5">{weekKey} · 赢得辩论 +2 分 · 败场 -1 分</div>
         </div>
       </div>
 

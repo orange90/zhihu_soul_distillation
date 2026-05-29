@@ -229,7 +229,7 @@ async function onUploadSelected() {
       ? `；被拒 ${rejected.length} 条（${rejected.slice(0, 3).map((r: any) => r.reason).join('；')}${rejected.length > 3 ? '…' : ''}）`
       : ''
   const total = typeof total_for_user === 'number' ? `；当前累计 ${total_for_user} 条` : ''
-  setStatus(`${head}${tail}${total}。可去蒸馏馆点「我自己」重新蒸馏。`, accepted > 0 ? 'ok' : 'err')
+  setStatus(`${head}${tail}${total}。可去蒸馏馆点「管理我的蒸馏」重新蒸馏。`, accepted > 0 ? 'ok' : 'err')
 }
 
 async function init() {
