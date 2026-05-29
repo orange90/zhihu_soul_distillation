@@ -8,32 +8,28 @@ export default function HomePage() {
     id: string
     name: string
     avatar_url?: string
-    opted_out?: boolean
     upload_count?: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [optOutLoading, setOptOutLoading] = useState(false)
-  const [optOutError, setOptOutError] = useState<string | null>(null)
   const [pluginModal, setPluginModal] = useState(false)
   const [pluginToken, setPluginToken] = useState<string | null>(null)
   const [pluginTokenLoading, setPluginTokenLoading] = useState(false)
   const [pluginTokenError, setPluginTokenError] = useState<string | null>(null)
   const [pluginTokenCopied, setPluginTokenCopied] = useState(false)
-  const [extInstalled, setExtInstalled] = useState<boolean | null>(null) // null=未知
+  const [extInstalled, setExtInstalled] = useState<boolean | null>(null)
   const [extVersion, setExtVersion] = useState<string | null>(null)
   const [installStatus, setInstallStatus] = useState<
     null | { kind: 'ok' | 'err' | 'loading'; text: string }
   >(null)
 
   useEffect(() => {
-    api
-      .me()
+    api.me()
       .then((r) => setUser(r.user))
       .catch(() => setUser(null))
       .finally(() => setLoading(false))
   }, [])
 
-  // 检测插件是否安装：发 zsd:ping，等 zsd:pong / zsd:installed
+  // 检测浏览器插件
   useEffect(() => {
     let timer: number | null = null
     const onMsg = (ev: MessageEvent) => {
@@ -55,21 +51,6 @@ export default function HomePage() {
       if (timer) window.clearTimeout(timer)
     }
   }, [])
-
-  const handleOptOutToggle = async () => {
-    if (!user) return
-    setOptOutLoading(true)
-    setOptOutError(null)
-    try {
-      const action = user.opted_out ? 'remove' : 'add'
-      const result = await api.optout(action)
-      setUser((u) => u ? { ...u, opted_out: result.opted_out } : u)
-    } catch (e: any) {
-      setOptOutError(String(e?.message || e))
-    } finally {
-      setOptOutLoading(false)
-    }
-  }
 
   const openPluginModal = async () => {
     setPluginModal(true)
@@ -94,13 +75,11 @@ export default function HomePage() {
       setPluginTokenCopied(true)
       setTimeout(() => setPluginTokenCopied(false), 2000)
     } catch {
-      // 兜底：选中
       const ta = document.getElementById('plugin-token-textarea') as HTMLTextAreaElement | null
       ta?.select()
     }
   }
 
-  // 一键写入：取 Token → postMessage 给 web-bridge → 等 ack
   const installTokenToExtension = async () => {
     setInstallStatus({ kind: 'loading', text: '正在写入插件…' })
     try {
@@ -137,159 +116,194 @@ export default function HomePage() {
 
   return (
     <div className="relative max-w-3xl mx-auto px-4 py-16">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-[320px] h-[320px] md:w-[520px] md:h-[520px] rounded-full bg-zhihu-blue/10 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-40 -right-20 w-[200px] h-[200px] md:w-[320px] md:h-[320px] rounded-full bg-zhihu-blue/5 blur-3xl"
-      />
+      {/* 背景光晕 */}
+      <div aria-hidden className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-[320px] h-[320px] md:w-[520px] md:h-[520px] rounded-full bg-zhihu-blue/10 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute top-40 -right-20 w-[200px] h-[200px] md:w-[320px] md:h-[320px] rounded-full bg-zhihu-blue/5 blur-3xl" />
+
       <div className="relative text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zhihu-blue-light text-zhihu-blue text-xs font-medium mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-zhihu-blue" />
           知乎 Hackathon 2026 · 引力场赛道
         </div>
+
         <h1 className="text-4xl md:text-5xl font-bold leading-tight text-zhihu-ink">
-          你关注的人，
+          你的知识沉淀，
           <br />
-          是你<span className="text-zhihu-blue">看不见的智库</span>
+          变成你的<span className="text-zhihu-blue">数字分身</span>
         </h1>
-        <p className="mt-6 text-base text-gray-600 leading-relaxed">
-          把你在知乎关注的那些人，蒸馏成一个可以对话的集体智慧体，
+
+        <p className="mt-6 text-base text-gray-600 leading-relaxed max-w-xl mx-auto">
+          上传你在知乎的回答，蒸馏出专属 AI 分身，
           <br />
-          也可以让他们就同一个话题<span className="text-zhihu-blue font-medium">互相辩论</span>，呈现共识与分歧。
+          然后让它替你参加<span className="text-zhihu-blue font-medium">辩论赛</span>，
+          或在<span className="text-amber-600 font-medium">学术酒吧</span>里与其他人的分身畅聊。
         </p>
 
-        <div className="mt-10 flex items-center justify-center gap-3 flex-wrap">
+        {/* 主入口按钮 */}
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           {loading ? (
-            <div className="h-11 w-40 rounded-full bg-gray-100 animate-pulse" />
+            <>
+              <div className="h-14 w-56 rounded-2xl bg-gray-100 animate-pulse" />
+              <div className="h-14 w-56 rounded-2xl bg-gray-100 animate-pulse" />
+            </>
           ) : user ? (
             <>
-              <button className="btn-primary" onClick={() => navigate('/select')}>
-                开始蒸馏
+              <button
+                onClick={() => navigate('/arena')}
+                className="group w-full sm:w-auto flex items-center justify-center gap-3 px-7 py-4 rounded-2xl bg-zhihu-blue text-white text-base font-semibold shadow-lg shadow-zhihu-blue/20 hover:bg-zhihu-blue-dark transition-all hover:scale-[1.02]"
+              >
+                <span className="text-2xl">⚔️</span>
+                <span>参与数字分身辩论赛</span>
               </button>
               <button
-                className={[
-                  'px-4 py-2.5 rounded-full border text-sm font-medium transition',
-                  user.opted_out
-                    ? 'border-green-400 text-green-700 bg-green-50 hover:bg-green-100'
-                    : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
-                ].join(' ')}
-                onClick={handleOptOutToggle}
-                disabled={optOutLoading}
-                title={user.opted_out ? '点击取消，允许其他用户蒸馏你' : '点击后，其他用户将无法蒸馏你'}
+                onClick={() => navigate('/bar')}
+                className="group w-full sm:w-auto flex items-center justify-center gap-3 px-7 py-4 rounded-2xl bg-amber-600 text-white text-base font-semibold shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition-all hover:scale-[1.02]"
               >
-                {optOutLoading ? '处理中…' : user.opted_out ? '已禁止被蒸馏 ✓' : '禁止自己被蒸馏'}
+                <span className="text-2xl">🍺</span>
+                <span>参与数字分身学术酒吧</span>
               </button>
             </>
           ) : (
-            <a className="btn-primary" href={api.loginUrl()}>
-              使用知乎账号登录
+            <a
+              className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-zhihu-blue text-white text-base font-semibold shadow-lg shadow-zhihu-blue/20 hover:bg-zhihu-blue-dark transition-all hover:scale-[1.02]"
+              href={api.loginUrl()}
+            >
+              使用知乎账号登录，开始体验
             </a>
           )}
         </div>
-        {user && !loading && (
-          <div className="mt-4 text-xs text-gray-500">
-            {user.opted_out
-              ? '当前状态：你已禁止其他用户（包括自己）将你蒸馏为 AI 分身。'
-              : '当前状态：允许其他用户将你蒸馏为 AI 分身。'}
-          </div>
-        )}
-        {optOutError && (
-          <div className="mt-3 mx-auto max-w-md text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-            操作失败：{optOutError}
-          </div>
-        )}
 
-        {user && (
-          <div className="mt-8 mx-auto max-w-2xl rounded-xl border border-zhihu-blue/30 bg-white/70 backdrop-blur p-4 text-left">
-            <div className="flex items-start gap-3">
-              <div className="shrink-0 w-9 h-9 rounded-lg bg-zhihu-blue/10 text-zhihu-blue flex items-center justify-center text-lg">🔌</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-zhihu-ink">
-                  浏览器插件：把你自己的知乎沉淀变成个人 AI Skill
-                </div>
-                <div className="mt-1 text-xs text-gray-600 leading-relaxed">
-                  知乎没有"按答主拉全部回答"的公开 API，导致搜索蒸馏出来的画像总是欠缺细节。
-                  装上浏览器插件，到你自己的主页一键勾选 / 批量上传，蒸馏直接基于你本人的原始回答，
-                  生成只属于你的 Skill 文档。
-                  {typeof user.upload_count === 'number' && user.upload_count > 0 && (
-                    <span className="ml-1 text-zhihu-blue font-medium">
-                      你已通过插件上传 {user.upload_count} 条原始回答。
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 items-center">
-                  {extInstalled === true ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={installTokenToExtension}
-                        disabled={installStatus?.kind === 'loading'}
-                        className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90 disabled:opacity-50"
-                      >
-                        {installStatus?.kind === 'loading'
-                          ? '写入中…'
-                          : '一键写入 Token 到插件'}
-                      </button>
-                      <span className="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                        ✓ 已检测到插件 {extVersion ? `v${extVersion}` : ''}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <a
-                        href="https://github.com/orange90/zhihu_soul_distillation/releases"
-                        target="_blank"
-                        rel="noopener"
-                        className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
-                      >
-                        下载插件
-                      </a>
-                      {extInstalled === false && (
-                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                          未检测到插件（请先安装）
-                        </span>
-                      )}
-                    </>
-                  )}
-                  <a
-                    href="https://github.com/orange90/zhihu_soul_distillation#浏览器插件蒸馏自己"
-                    target="_blank"
-                    rel="noopener"
-                    className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    安装说明
-                  </a>
-                  <button
-                    type="button"
-                    onClick={openPluginModal}
-                    className="text-[11px] text-gray-400 hover:text-zhihu-blue underline-offset-2 hover:underline"
-                  >
-                    手动复制 Token
-                  </button>
-                </div>
-                {installStatus && (
-                  <div
-                    className={[
-                      'mt-2 text-xs rounded-md px-2 py-1 inline-block',
-                      installStatus.kind === 'ok'
-                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                        : installStatus.kind === 'err'
-                          ? 'text-red-700 bg-red-50 border border-red-200'
-                          : 'text-gray-600 bg-gray-50 border border-gray-200'
-                    ].join(' ')}
-                  >
-                    {installStatus.text}
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* 已登录用户：快捷入口 */}
+        {user && !loading && (
+          <div className="mt-4 flex items-center justify-center gap-4 text-sm text-gray-500">
+            <button
+              onClick={() => navigate('/my-distillations')}
+              className="hover:text-zhihu-blue hover:underline underline-offset-2"
+            >
+              🧪 管理我的蒸馏
+            </button>
+            <span className="text-gray-300">·</span>
+            <button
+              onClick={() => navigate('/leaderboard')}
+              className="hover:text-zhihu-blue hover:underline underline-offset-2"
+            >
+              🏆 本周积分榜
+            </button>
           </div>
         )}
       </div>
 
+      {/* 三步说明 */}
+      <div className="relative mt-14 grid md:grid-cols-3 gap-4">
+        {[
+          {
+            icon: '🔌',
+            t: '第一步：上传你的回答',
+            d: '安装浏览器插件，到你的知乎主页勾选回答上传，最多保存 10 条精华。'
+          },
+          {
+            icon: '🧪',
+            t: '第二步：蒸馏数字分身',
+            d: '在「我的蒸馏」页面一键开始，AI 提炼你的价值观、思维方式与写作风格，生成专属 Skill。每天可蒸馏 2 次，持续迭代。'
+          },
+          {
+            icon: '⚔️',
+            t: '第三步：让分身出战',
+            d: '加入辩论场（5大类议题，赢了得积分）或学术酒吧（每晚8点，30人围坐畅聊）。'
+          }
+        ].map((s) => (
+          <div key={s.t} className="card p-5">
+            <div className="text-2xl mb-2">{s.icon}</div>
+            <div className="text-zhihu-blue font-semibold text-sm">{s.t}</div>
+            <div className="mt-2 text-sm text-gray-600 leading-relaxed">{s.d}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 浏览器插件 */}
+      {user && (
+        <div className="relative mt-8 rounded-xl border border-zhihu-blue/30 bg-white/70 backdrop-blur p-4 text-left">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-9 h-9 rounded-lg bg-zhihu-blue/10 text-zhihu-blue flex items-center justify-center text-lg">🔌</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-zhihu-ink">
+                浏览器插件：把你的知乎回答变成数字分身素材
+              </div>
+              <div className="mt-1 text-xs text-gray-600 leading-relaxed">
+                知乎没有"按答主拉全部回答"的公开 API。装上插件，到你的知乎主页一键勾选批量上传，
+                蒸馏直接基于你本人的原始回答，生成只属于你的 Skill 文档。
+                {typeof user.upload_count === 'number' && user.upload_count > 0 && (
+                  <span className="ml-1 text-zhihu-blue font-medium">
+                    你已上传 {user.upload_count} 条回答。
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 items-center">
+                {extInstalled === true ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={installTokenToExtension}
+                      disabled={installStatus?.kind === 'loading'}
+                      className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90 disabled:opacity-50"
+                    >
+                      {installStatus?.kind === 'loading' ? '写入中…' : '一键写入 Token 到插件'}
+                    </button>
+                    <span className="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                      ✓ 已检测到插件 {extVersion ? `v${extVersion}` : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <a
+                      href="https://github.com/orange90/zhihu_soul_distillation/releases"
+                      target="_blank"
+                      rel="noopener"
+                      className="text-xs px-3 py-1.5 rounded-full bg-zhihu-blue text-white hover:bg-zhihu-blue/90"
+                    >
+                      下载插件
+                    </a>
+                    {extInstalled === false && (
+                      <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        未检测到插件（请先安装）
+                      </span>
+                    )}
+                  </>
+                )}
+                <a
+                  href="https://github.com/orange90/zhihu_soul_distillation#浏览器插件蒸馏自己"
+                  target="_blank"
+                  rel="noopener"
+                  className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  安装说明
+                </a>
+                <button
+                  type="button"
+                  onClick={openPluginModal}
+                  className="text-[11px] text-gray-400 hover:text-zhihu-blue underline-offset-2 hover:underline"
+                >
+                  手动复制 Token
+                </button>
+              </div>
+              {installStatus && (
+                <div className={[
+                  'mt-2 text-xs rounded-md px-2 py-1 inline-block',
+                  installStatus.kind === 'ok'
+                    ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    : installStatus.kind === 'err'
+                      ? 'text-red-700 bg-red-50 border border-red-200'
+                      : 'text-gray-600 bg-gray-50 border border-gray-200'
+                ].join(' ')}>
+                  {installStatus.text}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Token Modal */}
       {pluginModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
@@ -307,18 +321,15 @@ export default function HomePage() {
                 type="button"
                 aria-label="关闭"
                 onClick={() => setPluginModal(false)}
-                className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500"
+                className="w-7 h-7 rounded-full hover:bg-gray-100 text-gray-500 text-xl"
               >
                 ×
               </button>
             </div>
             <p className="mt-2 text-xs text-gray-600 leading-relaxed">
               复制下方 Token，粘贴到插件 popup 的"Token"输入框即可。Token 等效于你的登录态，请勿外传。
-              当你在网页端登出后请重新获取一次。
             </p>
-            {pluginTokenLoading && (
-              <div className="mt-4 text-sm text-gray-500">生成中…</div>
-            )}
+            {pluginTokenLoading && <div className="mt-4 text-sm text-gray-500">生成中…</div>}
             {pluginTokenError && (
               <div className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
                 生成失败：{pluginTokenError}
@@ -333,7 +344,7 @@ export default function HomePage() {
                   className="mt-4 w-full h-24 text-xs font-mono rounded-md border border-gray-200 bg-gray-50 p-2 outline-none focus:border-zhihu-blue"
                   onFocus={(e) => e.currentTarget.select()}
                 />
-                <div className="mt-3 flex items-center justify-end gap-2">
+                <div className="mt-3 flex items-center justify-end">
                   <button
                     type="button"
                     onClick={copyPluginToken}
@@ -347,76 +358,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-
-      {/* Game Modes */}
-      {user && (
-        <div className="relative mt-12 mb-2">
-          <div className="text-center text-sm font-medium text-gray-500 mb-4">探索更多玩法</div>
-          <div className="grid md:grid-cols-3 gap-4">
-            <button
-              onClick={() => navigate('/my-distillations')}
-              className="card p-5 text-left hover:border-zhihu-blue hover:shadow-md transition-all group"
-            >
-              <div className="text-2xl mb-2">🧪</div>
-              <div className="font-semibold text-zhihu-ink group-hover:text-zhihu-blue">我的蒸馏</div>
-              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
-                管理你的回答素材，开始蒸馏你的专属 AI 分身，最多保存 10 条
-              </div>
-              {user.upload_count && user.upload_count > 0 ? (
-                <div className="mt-2 text-xs text-zhihu-blue">已上传 {user.upload_count} 条 →</div>
-              ) : null}
-            </button>
-
-            <button
-              onClick={() => navigate('/arena')}
-              className="card p-5 text-left hover:border-blue-400 hover:shadow-md transition-all group relative overflow-hidden"
-            >
-              <div className="absolute top-2 right-2 text-[10px] text-white bg-blue-500 rounded-full px-2 py-0.5">NEW</div>
-              <div className="text-2xl mb-2">⚔️</div>
-              <div className="font-semibold text-zhihu-ink group-hover:text-blue-600">新知辩论场</div>
-              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
-                用你的数字分身参加辩论赛，5 个议题覆盖人文科技，赢了得积分
-              </div>
-              <div className="mt-2 text-xs text-blue-500">本周辩题已更新 →</div>
-            </button>
-
-            <button
-              onClick={() => navigate('/bar')}
-              className="card p-5 text-left hover:border-amber-400 hover:shadow-md transition-all group relative overflow-hidden"
-            >
-              <div className="absolute top-2 right-2 text-[10px] text-white bg-amber-500 rounded-full px-2 py-0.5">NEW</div>
-              <div className="text-2xl mb-2">🍺</div>
-              <div className="font-semibold text-zhihu-ink group-hover:text-amber-700">学术酒吧</div>
-              <div className="mt-1 text-xs text-gray-500 leading-relaxed">
-                每天 8 点，数字分身齐聚酒吧，围绕当日科技热点展开讨论
-              </div>
-              <div className="mt-2 text-xs text-amber-600">今晚 8 点准时开张 →</div>
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="relative mt-10 grid md:grid-cols-3 gap-4">
-        {[
-          {
-            t: '1. 选择最多 5 位',
-            d: '从你的关注列表中挑选最能代表你的知识圈的 5 个人。'
-          },
-          {
-            t: '2. 蒸馏思维 DNA',
-            d: '对每个答主提取「价值观 / 思维方式 / 擅长领域 / 代表观点」。'
-          },
-          {
-            t: '3. 对话 or 辩论',
-            d: '既能以融合人格的「我们」回答问题，也能让答主们围绕一个话题彼此交锋，自动提炼共识与分歧。'
-          }
-        ].map((s) => (
-          <div key={s.t} className="card p-5">
-            <div className="text-zhihu-blue font-semibold">{s.t}</div>
-            <div className="mt-2 text-sm text-gray-600 leading-relaxed">{s.d}</div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
