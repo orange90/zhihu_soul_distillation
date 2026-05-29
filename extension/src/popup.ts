@@ -16,8 +16,20 @@ async function load() {
   else setStatus('请先在蒸馏馆首页点「获取插件 Token」并粘贴到上方。')
 }
 
+function normalizeApiBase(raw: string): { value: string; note: string } {
+  let v = raw.trim().replace(/\/$/, '')
+  if (!v) return { value: '', note: '' }
+  // 把 http://非 localhost 自动改成 https://，避免 CORS preflight 被 302 跳转打死
+  const m = /^http:\/\/([^/]+)(.*)$/.exec(v)
+  if (m && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/.test(m[1])) {
+    v = `https://${m[1]}${m[2]}`
+    return { value: v, note: '已自动改为 https://（http→https 重定向会让 CORS preflight 失败）' }
+  }
+  return { value: v, note: '' }
+}
+
 $('save').addEventListener('click', async () => {
-  const apiBase = (($('apiBase') as HTMLInputElement).value || '').trim().replace(/\/$/, '')
+  const { value: apiBase, note } = normalizeApiBase(($('apiBase') as HTMLInputElement).value || '')
   const token = (($('token') as HTMLTextAreaElement).value || '').trim()
   if (!apiBase) {
     setStatus('请填写后端地址', 'err')
@@ -27,8 +39,9 @@ $('save').addEventListener('click', async () => {
     setStatus('请粘贴 Token', 'err')
     return
   }
+  ;($('apiBase') as HTMLInputElement).value = apiBase
   await setConfig({ apiBase, token })
-  setStatus('已保存。', 'ok')
+  setStatus(`已保存${note ? '\n' + note : ''}`, 'ok')
 })
 
 $('ping').addEventListener('click', () => {
