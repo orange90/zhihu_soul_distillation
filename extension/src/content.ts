@@ -52,7 +52,7 @@ function ensureToolbar() {
 
   bar.querySelector('#zsd-btn-fetch-all')!.addEventListener('click', onBatchFetch)
   bar.querySelector('#zsd-btn-upload')!.addEventListener('click', onUploadSelected)
-  bar.querySelector('#zsd-btn-clear')!.addEventListener('click', clearSelection)
+  bar.querySelector('#zsd-btn-clear')!.addEventListener('click', () => clearSelection())
 }
 
 function setStatus(text: string, kind: 'info' | 'ok' | 'err' = 'info') {
@@ -67,13 +67,13 @@ function updateCount() {
   if (el) el.textContent = String(STATE.selected.size)
 }
 
-function clearSelection() {
+function clearSelection(opts: { silent?: boolean } = {}) {
   STATE.selected.clear()
   document.querySelectorAll('.zsd-checkbox.zsd-checked').forEach((b) => {
     b.classList.remove('zsd-checked')
   })
   updateCount()
-  setStatus('已清空选择')
+  if (!opts.silent) setStatus('已清空选择')
 }
 
 function injectCheckboxes() {
@@ -144,11 +144,12 @@ async function onBatchFetch() {
 }
 
 async function onUploadSelected() {
-  if (STATE.selected.size === 0) {
+  const planned = STATE.selected.size
+  if (planned === 0) {
     setStatus('还没有勾选任何回答', 'err')
     return
   }
-  setStatus(`正在上传 ${STATE.selected.size} 条…`)
+  setStatus(`正在上传 ${planned} 条…`)
   const answers = [...STATE.selected.values()]
   const reply = await new Promise<any>((resolve) => {
     chrome.runtime.sendMessage({ type: 'upload', answers }, (r) => resolve(r))
@@ -157,12 +158,34 @@ async function onUploadSelected() {
     setStatus(`上传失败：${reply?.error || 'unknown'}`, 'err')
     return
   }
-  const { accepted, rejected, total_for_user } = reply.result
-  setStatus(
-    `已上传 ${accepted} 条，拒绝 ${rejected?.length || 0} 条；当前累计 ${total_for_user ?? '?'} 条。可去蒸馏馆点击「我自己」重新蒸馏。`,
-    'ok'
-  )
-  clearSelection()
+  const { accepted, rejected = [], total_for_user } = reply.result
+  // 仅清空已被服务端成功接收的条目，剩下被拒的留在选择里供用户检查
+  const rejectedIds = new Set(rejected.map((r: any) => String(r.answer_id)))
+  for (const id of [...STATE.selected.keys()]) {
+    if (!rejectedIds.has(id)) STATE.selected.delete(id)
+  }
+  document.querySelectorAll<HTMLElement>('.zsd-checkbox.zsd-checked').forEach((b) => {
+    // 只 uncheck 那些已不在 selected 里的
+    const card = b.closest('[data-zop]') as HTMLElement | null
+    if (!card) return
+    let zop: any = {}
+    try {
+      zop = JSON.parse(card.getAttribute('data-zop') || '{}')
+    } catch {
+      /* ignore */
+    }
+    const id = String(zop.itemId || '')
+    if (id && !STATE.selected.has(id)) b.classList.remove('zsd-checked')
+  })
+  updateCount()
+
+  const head = accepted > 0 ? `✅ 上传成功 ${accepted} 条` : '⚠️ 没有任何条目入库'
+  const tail =
+    rejected.length > 0
+      ? `；被拒 ${rejected.length} 条（${rejected.slice(0, 3).map((r: any) => r.reason).join('；')}${rejected.length > 3 ? '…' : ''}）`
+      : ''
+  const total = typeof total_for_user === 'number' ? `；当前累计 ${total_for_user} 条` : ''
+  setStatus(`${head}${tail}${total}。可去蒸馏馆点「我自己」重新蒸馏。`, accepted > 0 ? 'ok' : 'err')
 }
 
 async function init() {

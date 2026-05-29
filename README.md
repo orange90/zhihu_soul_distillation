@@ -115,7 +115,7 @@ vercel.json                  Vercel 部署配置
 
 ### 下载与安装
 
-最新构建：[`extension/releases/zsd-extension-v0.1.1.zip`](extension/releases/zsd-extension-v0.1.1.zip)
+最新构建：[`extension/releases/zsd-extension-v0.1.2.zip`](extension/releases/zsd-extension-v0.1.2.zip)
 （或在 [Releases](https://github.com/orange90/zhihu_soul_distillation/releases) 页面找最新版）
 
 1. 下载 zip 并解压
