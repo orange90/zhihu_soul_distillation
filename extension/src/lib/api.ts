@@ -29,7 +29,7 @@ export async function ensureLinkedUrlToken(urlToken: string): Promise<{
   if (!cfg.token) return { linked: false, note: '尚未配置 Token，先到 popup 粘贴后再来' }
   if (cfg.linkedUrlToken === urlToken) return { linked: true, note: 'already linked' }
 
-  const url = `${cfg.apiBase}/api/auth/plugin-token`
+  const url = `${cfg.apiBase}/api/auth/me`
   let res: Response
   try {
     res = await fetch(url, {
@@ -39,7 +39,7 @@ export async function ensureLinkedUrlToken(urlToken: string): Promise<{
         Authorization: `Bearer ${cfg.token}`
       },
       credentials: 'include',
-      body: JSON.stringify({ url_token: urlToken })
+      body: JSON.stringify({ action: 'plugin-token', url_token: urlToken })
     })
   } catch (e: any) {
     return { linked: false, note: `link 请求失败：${e?.message || e}` }

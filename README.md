@@ -1,13 +1,44 @@
 # 知识蒸馏馆 · zhihu_soul_distillation
 
-> 把你在知乎关注的那些人，蒸馏成一个可以对话的集体智慧体——
-> 也可以让他们就同一个话题互相辩论，自动呈现共识与分歧。
+> 把你在知乎的回答蒸馏成一个 AI 数字分身，
+> 然后让它替你参加辩论赛、或在学术酒吧里与其他人的分身畅聊。
 > 知乎 Hackathon 2026 · 引力场赛道 · 单人项目。
+
+## 产品玩法
+
+### 第一步：上传回答 + 蒸馏数字分身
+
+安装浏览器插件，到你的知乎主页勾选想保留的回答（最多 10 条）批量上传。
+然后在「我的蒸馏」页面一键蒸馏，AI 提炼你的价值观、思维方式与写作风格，生成专属 Skill 文档。
+每天可蒸馏 2 次，持续迭代优化。蒸馏完成后会获得评级：**夯 / 人上人 / NPC / 拉完了**。
+
+### 第二步，二选一
+
+#### ⚔️ 新知辩论场
+
+- 每周 5 场辩论，覆盖人文 / 科技 / 教育 / 数码 / 生物科学五大类
+- 选一道题，选择加入正方或反方（每方 3 人）
+- 6 人满员后自动生成完整辩论（AI 模拟每位分身的发言风格）
+- 桌面端左右对阵，移动端上下排列；发言以气泡形式逐条播放
+- AI 裁判判定胜方，赢方每人 +1 积分
+- 周积分榜 + 专属排名海报分享
+
+#### 🍺 学术酒吧
+
+- 每天上午 10 点发布当日热点议题
+- 5 张吧台，每桌 6 人，共 30 个席位（先坐满第 1 桌再开第 2 桌）
+- 晚上 8 点准时开始，所有入座的数字分身自动发言（100-300 字）
+- 发言气泡打字机效果呈现，全程记录可滚动查看
+- 所有人发言完成后生成 AI 摘要
+
+> **注意**：未蒸馏数字分身的用户无法加入辩论场或学术酒吧。
+
+---
 
 ## 技术栈
 
-- 前端：React 18 + Vite + TypeScript + Tailwind CSS（知乎蓝风格）
-- 后端：Vercel Serverless Functions（`api/*.ts`）
+- 前端：React 18 + Vite + TypeScript + Tailwind CSS
+- 后端：Vercel Serverless Functions（`api/*.ts`，共 12 个，适配 Hobby 计划）
 - 数据 & 缓存：Supabase（Postgres）
 - AI：OpenAI 兼容的大模型 `/v1/chat/completions`（默认 OpenAI，可自定义 `LLM_BASE_URL`）
 - 身份：知乎 OAuth（`HttpOnly` Cookie Session）
@@ -15,29 +46,41 @@
 ## 目录结构
 
 ```
-api/                         Vercel Serverless Functions
+api/                         Vercel Serverless Functions（12 个）
   _lib/
-    zhihu.ts                 知乎 OAuth / 多源搜索（Dev API + OpenAPI + Tavily + v4 充实）+ LLM 封装
-    supabase.ts              Supabase 客户端 + 30 天 TTL
+    zhihu.ts                 知乎 OAuth / 多源搜索 + LLM 封装
+    supabase.ts              Supabase 客户端
     session.ts               HMAC 签名 Cookie Session
     http.ts                  统一 JSON 响应
     types.ts                 共享类型
-  auth/login.ts              302 跳转到知乎 OAuth
-  auth/callback.ts           OAuth 回调 + 写 Session
-  auth/me.ts                 查询当前登录态
-  auth/logout.ts             清除 Session
-  following.ts               拉取关注列表
-  distill.ts                 逐个提炼答主 skills（带 Supabase 跨用户缓存）
-  persona.ts                 加权融合生成集体人格
-  chat.ts                    两种模式合一：mode='collective' 集体人格回答 / mode='debate' 多答主辩论
+  auth/
+    login.ts                 302 跳转到知乎 OAuth
+    callback.ts              OAuth 回调 + 写 Session
+    me.ts                    查询当前登录态 / 登出 / 生成插件 Token
+  distill.ts                 蒸馏他人（多人集体画像，保留兼容）
+  my-distillations.ts        我的蒸馏管理（上传列表 / 删除 / 自我蒸馏）
+  arena.ts                   竞技场：辩题管理 / 加入 / 触发辩论 / 积分榜
+  bar.ts                     学术酒吧：议题 / 入座 / 发言生成
+  chat.ts                    对话（collective / debate 模式，保留兼容）
+  persona.ts                 融合集体人格（保留兼容）
+  following.ts               拉取关注列表（保留兼容）
+  optout.ts                  拒绝被蒸馏
+  upload-answers.ts          浏览器插件上传回答（限 10 条）
 src/
-  pages/                     HomePage / SelectPage / LoadingPage / ResultPage / DebatePage
+  pages/
+    HomePage.tsx             首页（登录 + 两大入口）
+    MyDistillationsPage.tsx  我的蒸馏管理
+    ArenaPage.tsx            竞技场
+    BarPage.tsx              学术酒吧
+    LeaderboardPage.tsx      周积分榜
+    SelectPage.tsx           选择答主（保留兼容）
+    LoadingPage.tsx          蒸馏进度
+    ResultPage.tsx           集体人格对话（保留兼容）
+    DebatePage.tsx           多人辩论（保留兼容）
   components/Layout.tsx      顶部导航 + 底部页脚
   lib/api.ts                 前端 API 客户端
-  lib/storage.ts             localStorage 轻量缓存
-supabase/schema.sql          建表 SQL
+supabase/schema.sql          建表 SQL（含竞技场 / 酒吧 / 蒸馏结果表）
 vercel.json                  Vercel 部署配置
-.env.example                 环境变量样例
 ```
 
 ## 本地开发
@@ -56,15 +99,14 @@ vercel.json                  Vercel 部署配置
 
    关键变量：
    - `ZHIHU_APP_ID` / `ZHIHU_OAUTH_APP_KEY`：知乎开放平台 OAuth 凭证
-   - `ZHIHU_APP_KEY` / `ZHIHU_APP_SECRET`：HMAC-SHA256 签名鉴权（旧 HMAC 接入）
+   - `ZHIHU_APP_KEY` / `ZHIHU_APP_SECRET`：HMAC-SHA256 签名鉴权
    - `ZHIHU_REDIRECT_URI`：OAuth 回调（本地：`http://localhost:3000/api/auth/callback`）
-   - `TAVILY_API_KEY`：Tavily 搜索 API（可选，提升答主回答发现率）
-   - `SERP_API_KEY`：SerpAPI 搜索（可选，Tavily 的备选方案）
    - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`：OpenAI 兼容大模型配置
    - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`：Supabase 服务端凭证
    - `SESSION_SECRET`：任意强随机串，用于签名 Session Cookie
+   - `TAVILY_API_KEY` / `SERP_API_KEY`：搜索 API（可选）
 
-3. 在 Supabase SQL Editor 中执行 `supabase/schema.sql` 建表。
+3. 在 Supabase SQL Editor 中执行 `supabase/schema.sql` 建表（包含所有新表）。
 
 4. 一体化本地开发（需 Vercel CLI）：
 
@@ -73,75 +115,31 @@ vercel.json                  Vercel 部署配置
    vercel dev
    ```
 
-   或仅跑前端：
+## 部署（Vercel Hobby Plan）
 
-   ```bash
-   npm run dev
-   ```
-
-## 部署（Vercel）
-
-1. 将仓库导入 Vercel，Framework 会自动识别为 Vite。
-2. Project Settings → Environment Variables 添加 `.env.example` 中的全部变量（生产环境的 `ZHIHU_REDIRECT_URI` 需改为 `https://<your-app>.vercel.app/api/auth/callback`）。
-3. 在知乎开放平台对应应用的 **授权回调** 中，加入上面的生产回调地址。
-
-## 核心数据流
-
-```
-用户 OAuth 登录
-   ↓
-/api/following 拉关注列表 → /select 勾选最多 5 人
-   ↓
-/api/distill：对每位答主
-   - 查 author_skills 是否命中（TTL 30 天）
-   - 未命中 → 多源搜索（知乎 API + OpenAPI + Tavily/SerpAPI）top 25
-     → 去重 + 作者名边界匹配过滤 → 知乎 v4 API 内容充实
-     → 取 top 8 → 通用 LLM 提炼 JSON → upsert
-   ↓
-/api/persona：加权融合 5 人 skills → 生成集体人格 → upsert user_circles
-   ↓
-前端渲染人格卡片 + 对话框
-   ↓
-/api/chat：注入集体人格 System Prompt → 通用 LLM 返回带引用回复
-```
-
-## 跨用户 skills 共享缓存
-
-`author_skills` 以 `author_id` 为主键，所有用户共享。热门答主在被第一位用户蒸馏后，后续其他用户的同名选择可直接命中缓存，显著降低搜索 / AI 配额消耗。
+1. 将仓库导入 Vercel，Framework 自动识别为 Vite。
+2. Project Settings → Environment Variables 添加上述全部变量（生产 `ZHIHU_REDIRECT_URI` 改为 `https://<your-app>.vercel.app/api/auth/callback`）。
+3. 在知乎开放平台授权回调中加入生产回调地址。
+4. 本项目 API 共 **12 个** Serverless Functions，刚好符合 Hobby 计划上限。
 
 ## 浏览器插件（蒸馏自己）
 
-知乎没有公开的「按答主拉全部回答」API，搜索通路召回上限只有 top 25。配套的浏览器插件让你**仅蒸馏自己**：到自己的知乎主页逐条勾选想蒸馏的回答，上传后蒸馏直接基于原始素材，跳过搜索。插件只在「自己主页」且「卡片作者为本人」的回答上才显示「加入蒸馏」按钮，由前端保证只上传本人内容。
+插件让你把自己的知乎回答直接上传到蒸馏馆，跳过公开 API 的数量限制。每人最多保存 10 条回答，可随时在「我的蒸馏」页面删除替换。
 
-### 下载与安装
+### 安装
 
-最新构建：[`extension/releases/zsd-extension-v0.1.5.zip`](extension/releases/zsd-extension-v0.1.5.zip)
-（或在 [Releases](https://github.com/orange90/zhihu_soul_distillation/releases) 页面找最新版）
+最新构建：[Releases](https://github.com/orange90/zhihu_soul_distillation/releases)
 
 1. 下载 zip 并解压
-2. 打开 Chrome / Edge → `chrome://extensions` → 打开右上角「开发者模式」
-3. 点「加载已解压的扩展程序」→ 选择解压后的文件夹
-4. 在蒸馏馆首页点「获取插件 Token」按钮 → 复制 Token
-5. 点击浏览器右上角插件图标 → 填入后端地址（开发期 `http://localhost:3000`，生产换成你的域名）+ Token → 保存
-6. 访问自己的知乎主页 `https://www.zhihu.com/people/<你的 url_token>`，页面底部会出现工具栏；逐条点「加入蒸馏」勾选想要的回答
-7. 上传完成后回蒸馏馆 `/select`，「我自己」卡片会显示「插件已上传 N 条」，再点开始蒸馏即可走 self_upload 通路
+2. Chrome / Edge → `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序
+3. 在首页获取插件 Token（点「一键写入」或手动复制）
+4. 访问你的知乎主页，页面底部工具栏勾选回答 → 上传
+5. 到「我的蒸馏」页面点「开始蒸馏」
 
 ### 本地构建
 
 ```bash
 cd extension
 npm install
-npm run build         # 产出 extension/dist
-# 然后 chrome://extensions → Load unpacked → 选 extension/dist
+npm run build   # 产出 extension/dist
 ```
-
-### 发布新版本（维护者）
-
-```bash
-# 修改 extension/package.json 和 extension/manifest.json 里的 version
-git tag ext-v0.1.1
-git push origin ext-v0.1.1
-# GitHub Actions 会自动构建 + 上传到 Releases
-```
-
-

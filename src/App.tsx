@@ -4,6 +4,10 @@ import SelectPage from './pages/SelectPage'
 import LoadingPage from './pages/LoadingPage'
 import ResultPage from './pages/ResultPage'
 import DebatePage from './pages/DebatePage'
+import MyDistillationsPage from './pages/MyDistillationsPage'
+import ArenaPage from './pages/ArenaPage'
+import BarPage from './pages/BarPage'
+import LeaderboardPage from './pages/LeaderboardPage'
 import Layout from './components/Layout'
 
 export default function App() {
@@ -15,6 +19,10 @@ export default function App() {
         <Route path="/loading" element={<LoadingPage />} />
         <Route path="/result" element={<ResultPage />} />
         <Route path="/debate" element={<DebatePage />} />
+        <Route path="/my-distillations" element={<MyDistillationsPage />} />
+        <Route path="/arena" element={<ArenaPage />} />
+        <Route path="/bar" element={<BarPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
       </Routes>
     </Layout>
   )

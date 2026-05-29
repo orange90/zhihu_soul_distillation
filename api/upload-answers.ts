@@ -6,6 +6,7 @@ import { applyExtensionCors } from './_lib/cors.js'
 
 const MAX_BATCH = 200
 const MIN_CONTENT_LEN = 80
+const MAX_PER_USER = 10
 
 type IncomingAnswer = {
   answer_id: string
@@ -83,6 +84,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!supabase) {
       return json(res, 503, { error: 'Supabase 未配置，无法持久化上传' })
     }
+
+    // Enforce per-user 10-answer limit
+    const { count: currentCount } = await supabase
+      .from('user_uploaded_answers')
+      .select('answer_id', { count: 'exact', head: true })
+      .eq('uploader_id', session.user_id)
+
+    const available = MAX_PER_USER - (currentCount || 0)
+    if (available <= 0) {
+      return json(res, 429, {
+        error: `你已存满 ${MAX_PER_USER} 条回答，请先去「我的蒸馏」页面删除一些再上传`,
+        current: currentCount,
+        max: MAX_PER_USER
+      })
+    }
+
+    // Trim rows to fit within limit
+    if (rows.length > available) {
+      rows.splice(available)
+    }
+
     if (rows.length > 0) {
       const { error } = await supabase
         .from('user_uploaded_answers')
