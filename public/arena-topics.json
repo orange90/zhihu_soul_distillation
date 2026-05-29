@@ -1,5 +1,76 @@
 {
-  "date": "2026-01-01",
-  "week_key": "",
-  "topics": []
+  "topics": [
+    {
+      "id": "82c2faba-2651-4085-9bc6-f4d72d718dc3",
+      "category": "人文",
+      "title": "AI 创作应被认定为真正的艺术吗",
+      "affirmative_view": "应该，AI 艺术代表创意新边界",
+      "negative_view": "不应该，真正艺术源于人类情感",
+      "week_key": "2026-05-29",
+      "status": "open",
+      "winner": null,
+      "ai_judgement": null,
+      "participants": [],
+      "aff_count": 0,
+      "neg_count": 0
+    },
+    {
+      "id": "cda710b4-90c5-4d57-84c3-c37d868b9278",
+      "category": "教育",
+      "title": "全面推广 AI 辅助学习会让学生更聪明吗",
+      "affirmative_view": "会，AI 释放认知带宽提升思维",
+      "negative_view": "不会，反而会侵蚀独立思考能力",
+      "week_key": "2026-05-29",
+      "status": "open",
+      "winner": null,
+      "ai_judgement": null,
+      "participants": [],
+      "aff_count": 0,
+      "neg_count": 0
+    },
+    {
+      "id": "6a241714-1106-4410-bac2-831bf2297c73",
+      "category": "数码",
+      "title": "短视频算法推荐是在满足需求还是制造需求",
+      "affirmative_view": "在满足，精准推荐提升效率",
+      "negative_view": "在制造，让人困在信息茧房",
+      "week_key": "2026-05-29",
+      "status": "open",
+      "winner": null,
+      "ai_judgement": null,
+      "participants": [],
+      "aff_count": 0,
+      "neg_count": 0
+    },
+    {
+      "id": "543c3a94-1eec-41fc-8d3d-b23593c7c031",
+      "category": "生物科学",
+      "title": "基因编辑应该被允许用于人类胚胎增强吗",
+      "affirmative_view": "应该，是消除遗传疾病的进步",
+      "negative_view": "不应该，带来不可控伦理风险",
+      "week_key": "2026-05-29",
+      "status": "open",
+      "winner": null,
+      "ai_judgement": null,
+      "participants": [],
+      "aff_count": 0,
+      "neg_count": 0
+    },
+    {
+      "id": "fa7716ba-b620-4666-b68a-2e4b5722e3dd",
+      "category": "科技",
+      "title": "大模型的涌现能力是真实质变还是幻觉",
+      "affirmative_view": "是真实质变，代表智能新层级",
+      "negative_view": "是统计幻觉，本质仍是模式匹配",
+      "week_key": "2026-05-29",
+      "status": "open",
+      "winner": null,
+      "ai_judgement": null,
+      "participants": [],
+      "aff_count": 0,
+      "neg_count": 0
+    }
+  ],
+  "week_key": "2026-W22",
+  "date": "2026-05-29"
 }
