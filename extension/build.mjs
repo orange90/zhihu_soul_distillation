@@ -20,6 +20,7 @@ const common = {
 const entries = [
   { entry: 'src/background.ts', out: `${outdir}/background.js` },
   { entry: 'src/content.ts', out: `${outdir}/content.js` },
+  { entry: 'src/web-bridge.ts', out: `${outdir}/web-bridge.js` },
   { entry: 'src/popup.ts', out: `${outdir}/popup.js` }
 ]
 

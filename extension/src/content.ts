@@ -15,6 +15,25 @@ async function ensureMe() {
   } catch (e) {
     console.warn('[zsd] fetchMe failed', e)
   }
+  // 把 url_token 上报给后端，换一份带 linked_url_token 的新 bearer——
+  // 这样后端在 upload-answers 校验时能识别 OAuth uid 之外的另一种"本人" id 形态。
+  if (STATE.me?.url_token) {
+    try {
+      const reply = await new Promise<any>((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: 'ensure_link', url_token: STATE.me!.url_token },
+          (r) => resolve(r)
+        )
+      })
+      if (reply?.ok && reply.result?.linked) {
+        console.log('[zsd] linked url_token to backend session:', reply.result.note)
+      } else if (reply && !reply.ok) {
+        console.warn('[zsd] link failed:', reply.error)
+      }
+    } catch (e) {
+      console.warn('[zsd] ensure_link error', e)
+    }
+  }
   return STATE.me
 }
 
@@ -52,7 +71,7 @@ function ensureToolbar() {
 
   bar.querySelector('#zsd-btn-fetch-all')!.addEventListener('click', onBatchFetch)
   bar.querySelector('#zsd-btn-upload')!.addEventListener('click', onUploadSelected)
-  bar.querySelector('#zsd-btn-clear')!.addEventListener('click', clearSelection)
+  bar.querySelector('#zsd-btn-clear')!.addEventListener('click', () => clearSelection())
 }
 
 function setStatus(text: string, kind: 'info' | 'ok' | 'err' = 'info') {
@@ -67,25 +86,46 @@ function updateCount() {
   if (el) el.textContent = String(STATE.selected.size)
 }
 
-function clearSelection() {
+function clearSelection(opts: { silent?: boolean } = {}) {
   STATE.selected.clear()
   document.querySelectorAll('.zsd-checkbox.zsd-checked').forEach((b) => {
     b.classList.remove('zsd-checked')
   })
   updateCount()
-  setStatus('已清空选择')
+  if (!opts.silent) setStatus('已清空选择')
+}
+
+// 卡片里所有 /people/<token> 链接，看是否至少有一个指向当前登录用户。
+// 用于过滤 timeline 上的"赞同/收藏了 XX 的回答"这类指向他人的卡片。
+function cardBelongsToMe(el: Element, myUrlToken: string): boolean {
+  const anchors = el.querySelectorAll('a[href*="/people/"]')
+  for (const a of Array.from(anchors)) {
+    const href = (a as HTMLAnchorElement).getAttribute('href') || ''
+    const m = href.match(/\/people\/([^/?#]+)/)
+    if (m && m[1] === myUrlToken) return true
+  }
+  return false
 }
 
 function injectCheckboxes() {
   if (!isMyProfilePage()) return
+  const me = STATE.me
+  if (!me?.url_token) return
   const items = document.querySelectorAll('[data-zop]')
   items.forEach((el) => {
-    if ((el as HTMLElement).dataset.zsdInjected === '1') return
+    const marker = (el as HTMLElement).dataset.zsdInjected
+    if (marker === '1' || marker === 'skip') return
     const parsed = parseAnswerElement(el)
-    if (!parsed) return
-    // 只对"我自己的回答"挂勾选 UI（按 url_token 比对）
-    // 注：data-zop 里 authorMemberHash 多为加密 id，并非 url_token；
-    // 为保险起见这里不严格按 author_id 过滤，但只在"我自己的主页"才会调到这里。
+    if (!parsed) {
+      ;(el as HTMLElement).dataset.zsdInjected = 'skip'
+      return
+    }
+    // 关键过滤：卡片里没有任何指向我的 /people/<token> 链接，说明这是别人的回答
+    // （比如 timeline 上的"赞同了回答"卡片），不挂"加入蒸馏"按钮
+    if (!cardBelongsToMe(el, me.url_token)) {
+      ;(el as HTMLElement).dataset.zsdInjected = 'skip'
+      return
+    }
     ;(el as HTMLElement).dataset.zsdInjected = '1'
 
     const checkbox = document.createElement('button')
@@ -144,11 +184,12 @@ async function onBatchFetch() {
 }
 
 async function onUploadSelected() {
-  if (STATE.selected.size === 0) {
+  const planned = STATE.selected.size
+  if (planned === 0) {
     setStatus('还没有勾选任何回答', 'err')
     return
   }
-  setStatus(`正在上传 ${STATE.selected.size} 条…`)
+  setStatus(`正在上传 ${planned} 条…`)
   const answers = [...STATE.selected.values()]
   const reply = await new Promise<any>((resolve) => {
     chrome.runtime.sendMessage({ type: 'upload', answers }, (r) => resolve(r))
@@ -157,12 +198,34 @@ async function onUploadSelected() {
     setStatus(`上传失败：${reply?.error || 'unknown'}`, 'err')
     return
   }
-  const { accepted, rejected, total_for_user } = reply.result
-  setStatus(
-    `已上传 ${accepted} 条，拒绝 ${rejected?.length || 0} 条；当前累计 ${total_for_user ?? '?'} 条。可去蒸馏馆点击「我自己」重新蒸馏。`,
-    'ok'
-  )
-  clearSelection()
+  const { accepted, rejected = [], total_for_user } = reply.result
+  // 仅清空已被服务端成功接收的条目，剩下被拒的留在选择里供用户检查
+  const rejectedIds = new Set(rejected.map((r: any) => String(r.answer_id)))
+  for (const id of [...STATE.selected.keys()]) {
+    if (!rejectedIds.has(id)) STATE.selected.delete(id)
+  }
+  document.querySelectorAll<HTMLElement>('.zsd-checkbox.zsd-checked').forEach((b) => {
+    // 只 uncheck 那些已不在 selected 里的
+    const card = b.closest('[data-zop]') as HTMLElement | null
+    if (!card) return
+    let zop: any = {}
+    try {
+      zop = JSON.parse(card.getAttribute('data-zop') || '{}')
+    } catch {
+      /* ignore */
+    }
+    const id = String(zop.itemId || '')
+    if (id && !STATE.selected.has(id)) b.classList.remove('zsd-checked')
+  })
+  updateCount()
+
+  const head = accepted > 0 ? `✅ 上传成功 ${accepted} 条` : '⚠️ 没有任何条目入库'
+  const tail =
+    rejected.length > 0
+      ? `；被拒 ${rejected.length} 条（${rejected.slice(0, 3).map((r: any) => r.reason).join('；')}${rejected.length > 3 ? '…' : ''}）`
+      : ''
+  const total = typeof total_for_user === 'number' ? `；当前累计 ${total_for_user} 条` : ''
+  setStatus(`${head}${tail}${total}。可去蒸馏馆点「我自己」重新蒸馏。`, accepted > 0 ? 'ok' : 'err')
 }
 
 async function init() {

@@ -47,6 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (raw.length === 0) return badRequest(res, '没有提供答案')
     if (raw.length > MAX_BATCH) return badRequest(res, `单批最多 ${MAX_BATCH} 条`)
 
+    // 认可的本人 id：OAuth uid + 插件观察并烙进 token 的 url_token；
+    // 任一匹配即视为本人（同一个人在两个 zhihu API 表面下的两种 id 形态）。
+    const validIds = new Set<string>()
+    if (session.user_id) validIds.add(String(session.user_id))
+    if (session.linked_url_token) validIds.add(String(session.linked_url_token))
+
     const accepted: Array<{ uploader_id: string; answer_id: string }> = []
     const rejected: Array<{ answer_id: string; reason: string }> = []
     const rows: Array<Record<string, unknown>> = []
@@ -57,10 +63,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         continue
       }
       // 关键安全检查：上传内容必须属于当前登录用户本人，杜绝代他人蒸馏
-      if (String(a.author_id) !== String(session.user_id)) {
+      if (!validIds.has(String(a.author_id))) {
         rejected.push({
           answer_id: a.answer_id,
-          reason: `author_id (${a.author_id}) 与登录用户 (${session.user_id}) 不匹配`
+          reason: `author_id (${a.author_id}) 与登录用户 (${[...validIds].join(' | ') || '?'}) 不匹配；` +
+            `如果你刚装插件请重新打开插件 popup 点「校验登录态」让插件刷新 token`
         })
         continue
       }
