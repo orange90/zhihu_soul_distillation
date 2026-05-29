@@ -1,7 +1,7 @@
 // 注入到 zhihu.com 全站。仅在"我自己的主页"显示批量抓取按钮，
 // 在我自己的回答上显示勾选 UI。其他场景静默。
 
-import { fetchMe, fetchAllMyAnswers, parseAnswerElement, type CollectedAnswer } from './lib/zhihu'
+import { fetchMe, parseAnswerElement, type CollectedAnswer } from './lib/zhihu'
 
 const STATE = {
   me: null as Awaited<ReturnType<typeof fetchMe>> | null,
@@ -59,17 +59,15 @@ function ensureToolbar() {
         <span class="zsd-toolbar-logo">🧪</span>
         知识蒸馏馆
       </div>
-      <div class="zsd-toolbar-status" id="zsd-status">点选下方回答或一键批量抓取</div>
+      <div class="zsd-toolbar-status" id="zsd-status">勾选下方你想蒸馏的回答</div>
       <div class="zsd-toolbar-actions">
-        <button id="zsd-btn-fetch-all" class="zsd-btn zsd-btn-primary">一键批量抓取我的全部回答</button>
-        <button id="zsd-btn-upload" class="zsd-btn">上传已选 <span id="zsd-count">0</span> 条</button>
+        <button id="zsd-btn-upload" class="zsd-btn zsd-btn-primary">上传已选 <span id="zsd-count">0</span> 条</button>
         <button id="zsd-btn-clear" class="zsd-btn zsd-btn-ghost">清空</button>
       </div>
     </div>
   `
   document.body.appendChild(bar)
 
-  bar.querySelector('#zsd-btn-fetch-all')!.addEventListener('click', onBatchFetch)
   bar.querySelector('#zsd-btn-upload')!.addEventListener('click', onUploadSelected)
   bar.querySelector('#zsd-btn-clear')!.addEventListener('click', () => clearSelection())
 }
@@ -159,28 +157,6 @@ function injectCheckboxes() {
       el
     anchor.appendChild(checkbox)
   })
-}
-
-async function onBatchFetch() {
-  const me = await ensureMe()
-  if (!me?.url_token) {
-    setStatus('未识别到知乎登录态，请先登录后刷新', 'err')
-    return
-  }
-  setStatus('正在批量抓取你的回答…')
-  try {
-    const all = await fetchAllMyAnswers(me.url_token, (cur, total) => {
-      setStatus(`已抓取 ${cur}${total ? ` / ${total}` : ''} 条…`)
-    })
-    all.forEach((a) => {
-      // 用 me.id 覆盖（v4 接口里 author.url_token 与 me 一致；保险起见统一一遍）
-      STATE.selected.set(a.answer_id, { ...a, author_id: me.id })
-    })
-    updateCount()
-    setStatus(`抓取完成，共 ${all.length} 条。点击「上传」发送到蒸馏馆。`, 'ok')
-  } catch (e: any) {
-    setStatus(`抓取失败：${e?.message || e}`, 'err')
-  }
 }
 
 async function onUploadSelected() {

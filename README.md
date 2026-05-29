@@ -111,11 +111,11 @@ vercel.json                  Vercel 部署配置
 
 ## 浏览器插件（蒸馏自己）
 
-知乎没有公开的「按答主拉全部回答」API，搜索通路召回上限只有 top 25。配套的浏览器插件让你**仅蒸馏自己**：到自己的知乎主页一键勾选 / 批量抓取回答，上传后蒸馏直接基于原始素材，跳过搜索。后端会逐条校验 `answer.author_id === session.user_id`，杜绝代他人上传。
+知乎没有公开的「按答主拉全部回答」API，搜索通路召回上限只有 top 25。配套的浏览器插件让你**仅蒸馏自己**：到自己的知乎主页逐条勾选想蒸馏的回答，上传后蒸馏直接基于原始素材，跳过搜索。插件只在「自己主页」且「卡片作者为本人」的回答上才显示「加入蒸馏」按钮，由前端保证只上传本人内容。
 
 ### 下载与安装
 
-最新构建：[`extension/releases/zsd-extension-v0.1.4.zip`](extension/releases/zsd-extension-v0.1.4.zip)
+最新构建：[`extension/releases/zsd-extension-v0.1.5.zip`](extension/releases/zsd-extension-v0.1.5.zip)
 （或在 [Releases](https://github.com/orange90/zhihu_soul_distillation/releases) 页面找最新版）
 
 1. 下载 zip 并解压
@@ -123,7 +123,7 @@ vercel.json                  Vercel 部署配置
 3. 点「加载已解压的扩展程序」→ 选择解压后的文件夹
 4. 在蒸馏馆首页点「获取插件 Token」按钮 → 复制 Token
 5. 点击浏览器右上角插件图标 → 填入后端地址（开发期 `http://localhost:3000`，生产换成你的域名）+ Token → 保存
-6. 访问自己的知乎主页 `https://www.zhihu.com/people/<你的 url_token>`，页面底部会出现工具栏；可以逐条点「加入蒸馏」或直接「一键批量抓取」
+6. 访问自己的知乎主页 `https://www.zhihu.com/people/<你的 url_token>`，页面底部会出现工具栏；逐条点「加入蒸馏」勾选想要的回答
 7. 上传完成后回蒸馏馆 `/select`，「我自己」卡片会显示「插件已上传 N 条」，再点开始蒸馏即可走 self_upload 通路
 
 ### 本地构建
