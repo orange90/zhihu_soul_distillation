@@ -128,7 +128,7 @@ vercel.json                  Vercel 部署配置
 
 ### 安装
 
-最新构建：[Releases](https://github.com/orange90/zhihu_soul_distillation/releases)
+最新构建：[Releases](https://github.com/orange90/zhihu_soul_distillation/tree/main/extension/releases)
 
 1. 下载 zip 并解压
 2. Chrome / Edge → `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序
