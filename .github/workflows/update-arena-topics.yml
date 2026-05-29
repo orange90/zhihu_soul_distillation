@@ -1,0 +1,58 @@
+name: Update Daily Arena Topics
+
+# Runs at 10am CST (02:00 UTC) every day to pre-generate debate topics.
+# Topics are fetched from the production API and committed as a static JSON file
+# so the frontend loads them instantly without waiting for AI generation.
+#
+# Setup required:
+#   Go to Settings > Secrets and variables > Actions > Variables
+#   Add a variable: PRODUCTION_URL = https://your-domain.com  (no trailing slash)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-topics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch today's arena topics from production
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "::error::PRODUCTION_URL is not set. Go to Settings > Variables > Actions and add PRODUCTION_URL=https://your-domain.com"
+            exit 1
+          fi
+
+          export TODAY=$(TZ=Asia/Shanghai date +%Y-%m-%d)
+          echo "Fetching topics for $TODAY from $PRODUCTION_URL"
+
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/arena-response.json "${PRODUCTION_URL}/api/arena")
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::API returned HTTP $HTTP_CODE"
+            cat /tmp/arena-response.json || true
+            exit 1
+          fi
+
+          python3 scripts/update-arena-topics.py
+
+      - name: Commit and push updated topics
+        run: |
+          TODAY=$(TZ=Asia/Shanghai date +%Y-%m-%d)
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add public/arena-topics.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update arena topics for $TODAY"
+            git push
+          fi
