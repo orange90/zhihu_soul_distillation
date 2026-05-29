@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { badRequest, json, readBody, serverError, unauthorized } from './_lib/http.js'
 import { readSession } from './_lib/session.js'
 import { getSupabase } from './_lib/supabase.js'
-import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
+import { chatCompletion } from './_lib/zhihu.js'
 import { barBotPersona, isBotUserId, makeBarBot } from './_lib/bots.js'
 
 // Vercel：一次请求最多生成「一批」发言，控制在函数最大时长内即可。
@@ -12,7 +12,6 @@ const MAX_TABLES = 4
 const SEATS_PER_TABLE = 6
 const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 24
 const COLD_START_MIN = 6 // 冷启动最少参与人数：8 点开聊前至少要凑够 6 人
-const BAR_BATCH = 4 // 每次推进最多生成的发言数，保证单次请求在函数最大时长内完成
 
 const FALLBACK_TOPICS = [
   'AI 大模型是否正在取代人类的创造力？',
@@ -189,12 +188,53 @@ ${spoken.map((s, i) => `${i + 1}. ${s.user_name}：${s.speech}`).join('\n\n')}
     .neq('status', 'completed')
 }
 
-// 推进学术酒吧讨论「一步」：为下一批已就坐但未发言的吧友生成发言并落库；
+// 生成「单个吧友的一段发言」。每次只生成一条，调用快、稳；只输出发言正文（不走 JSON 解析），
+// 最大限度避免格式解析失败导致的「永远生成不出来」。
+async function generateOneSpeech(
+  topic: any,
+  speaker: any,
+  prior: Array<{ user_name: string; speech: string }>,
+  skillMap: Record<string, { desc: string; markdown: string }>
+): Promise<string> {
+  const style = isBotUserId(speaker.user_id)
+    ? barBotPersona()
+    : (skillMap[speaker.user_id]?.desc ? skillMap[speaker.user_id].desc.slice(0, 60) : '知乎答主')
+  const priorText = prior.length > 0
+    ? `\n\n【已有的发言（请承接、避免重复）】\n${prior.map((s, i) => `${i + 1}. ${s.user_name}：${s.speech}`).join('\n')}`
+    : ''
+
+  const prompt = `今天学术酒吧的议题是：「${topic.topic}」
+
+现在轮到【${speaker.user_name}】发言：
+- 风格：${style}
+- 要求：基于其风格、紧扣议题、言之有物，可承接前面发言继续深化或提出不同看法
+- 语气：像在酒吧聊天，轻松但有深度，可用第一人称
+- 字数：100-300字${priorText}
+
+请直接以 ${speaker.user_name} 的口吻输出这段发言正文。不要加「${speaker.user_name}：」之类前缀，不要引号，不要任何解释。`
+
+  const result = await chatCompletion(
+    [
+      { role: 'system', content: '你是学术酒吧里的发言者，只输出该参与者这一段的发言正文，自然口语、有个人风格。' },
+      { role: 'user', content: prompt }
+    ],
+    { temperature: 0.85, timeoutMs: 25_000, maxRetries: 1 }
+  )
+
+  let content = (result.content || '').trim()
+  content = content.replace(/^["「『]+/, '').replace(/["」』]+$/, '').trim()
+  for (const pre of [`${speaker.user_name}：`, `${speaker.user_name}:`]) {
+    if (content.startsWith(pre)) content = content.slice(pre.length).trim()
+  }
+  return content
+}
+
+// 推进学术酒吧讨论「一步」：为下一位已就坐但未发言的吧友生成一段发言并落库；
 // 全员发言完毕后生成 AI 摘要并结束。可重复调用、可断点续传（以是否已有 speech 为进度依据），
-// 适配 serverless 无后台任务的限制——由前端轮询触发，每次只做一批，保证在函数最大时长内完成。
-async function advanceBar(supabase: any, topicId: string): Promise<void> {
+// 每次只做一条，保证在函数最大时长内完成。返回该讨论是否已结束。
+async function advanceBar(supabase: any, topicId: string): Promise<{ done: boolean }> {
   const { data: topic } = await supabase.from('bar_topics').select('*').eq('id', topicId).single()
-  if (!topic || topic.status === 'completed') return
+  if (!topic || topic.status === 'completed') return { done: true }
 
   const { data: allSessions } = await supabase
     .from('bar_sessions')
@@ -203,7 +243,7 @@ async function advanceBar(supabase: any, topicId: string): Promise<void> {
     .order('table_num').order('seat_num')
 
   const sessions = allSessions || []
-  if (sessions.length === 0) return
+  if (sessions.length === 0) return { done: false }
 
   const pending = sessions.filter((s: any) => !s.speech)
 
@@ -220,72 +260,34 @@ async function advanceBar(supabase: any, topicId: string): Promise<void> {
         .eq('id', topicId)
         .neq('status', 'completed')
     }
-    return
+    return { done: true }
   }
 
-  const batch = pending.slice(0, BAR_BATCH)
-  const prior = sessions.filter((s: any) => s.speech)
+  const speaker = pending[0]
+  const prior = sessions
+    .filter((s: any) => s.speech)
+    .map((s: any) => ({ user_name: s.user_name, speech: s.speech }))
 
-  // 拉取本批发言者的蒸馏画像
-  const userIds = batch.map((s: any) => s.user_id)
   const { data: skills } = await supabase
     .from('user_distillation_results')
     .select('user_id, skill_desc, skill_markdown')
-    .in('user_id', userIds)
+    .in('user_id', [speaker.user_id])
   const skillMap: Record<string, { desc: string; markdown: string }> = {}
   for (const s of (skills || [])) {
     skillMap[s.user_id] = { desc: s.skill_desc || '', markdown: s.skill_markdown || '' }
   }
 
-  const priorText = prior.length > 0
-    ? `\n\n【已有的发言（请承接、避免重复）】\n${prior.map((s: any, i: number) => `${i + 1}. ${s.user_name}：${s.speech}`).join('\n')}`
-    : ''
+  const content = await generateOneSpeech(topic, speaker, prior, skillMap)
+  if (!content) throw new Error(`empty bar speech for ${speaker.user_id}`)
 
-  const speakerList = batch.map((s: any, i: number) => {
-    const skill = skillMap[s.user_id]
-    const style = isBotUserId(s.user_id)
-      ? barBotPersona()
-      : (skill?.desc ? skill.desc.slice(0, 60) : '知乎答主')
-    return `${i + 1}. ${s.user_name}（风格：${style}）`
-  }).join('\n')
+  // 仅在该座位仍未发言时写入，保证并发幂等（不覆盖已生成的发言）
+  await supabase.from('bar_sessions')
+    .update({ speech: content, generated_at: new Date().toISOString() })
+    .eq('topic_id', topicId)
+    .eq('user_id', speaker.user_id)
+    .is('speech', null)
 
-  const prompt = `今天学术酒吧的议题是：「${topic.topic}」
-
-请按顺序为以下参与者各生成一段发言（100-300字）：
-${speakerList}
-
-要求：
-1. 基于该参与者的个人风格特点
-2. 紧扣议题，言之有物
-3. 可以承接前面已有的发言继续深化，也可以提出不同看法
-4. 语气要像在酒吧聊天——轻松但有深度，可以用第一人称${priorText}
-
-只输出 JSON 数组，长度必须为 ${batch.length}，顺序与上面一致：
-[
-  {"speech": "第1位的发言"},
-  ... 共 ${batch.length} 条 ...
-]`
-
-  const result = await chatCompletion(
-    [
-      { role: 'system', content: '你是一个学术酒吧的主持人AI，负责模拟每位参与者的发言风格，生成一场有深度有趣味的学术讨论。' },
-      { role: 'user', content: prompt }
-    ],
-    { temperature: 0.8, timeoutMs: 50_000, maxRetries: 1 }
-  )
-
-  const arr = extractFirstJson<Array<{ speech?: string }>>(result.content) || []
-  const now = new Date().toISOString()
-  for (let i = 0; i < batch.length; i++) {
-    const content = String(arr[i]?.speech || '').trim()
-    if (!content) continue
-    // 仅在该座位仍未发言时写入，保证并发幂等（不覆盖已生成的发言）
-    await supabase.from('bar_sessions')
-      .update({ speech: content, generated_at: now })
-      .eq('topic_id', topicId)
-      .eq('user_id', batch[i].user_id)
-      .is('speech', null)
-  }
+  return { done: false }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
