@@ -238,6 +238,9 @@ export default function HomePage() {
                   </span>
                 )}
               </div>
+              <div className="mt-2 text-xs rounded-md px-2 py-1.5 bg-blue-50 border border-blue-200 text-blue-700">
+                <span className="font-medium">💡 提示：</span>如果你在手机上，将无法使用此浏览器插件来管理你的数字分身素材；请在电脑 Chrome 浏览器上使用此插件。
+              </div>
               <div className="mt-3 flex flex-wrap gap-2 items-center">
                 {extInstalled === true ? (
                   <>
