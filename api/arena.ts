@@ -404,14 +404,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq('topic_id', topic_id)
 
         if ((totalCount || 0) >= 6) {
-          // Start debate generation
+          // Start debate generation in the background — don't block the join response
           await supabase.from('arena_topics').update({ status: 'debating' }).eq('id', topic_id)
-          try {
-            await generateDebate(supabase, topic_id)
-          } catch (e) {
+          generateDebate(supabase, topic_id).catch(async (e) => {
             console.error('[arena] debate generation failed', e)
             await supabase.from('arena_topics').update({ status: 'open' }).eq('id', topic_id)
-          }
+          })
         }
 
         return json(res, 200, {
