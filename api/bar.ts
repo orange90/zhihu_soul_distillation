@@ -3,10 +3,12 @@ import { badRequest, json, readBody, serverError, unauthorized } from './_lib/ht
 import { readSession } from './_lib/session.js'
 import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
+import { barBotPersona, isBotUserId, makeBarBot } from './_lib/bots.js'
 
 const MAX_TABLES = 4
 const SEATS_PER_TABLE = 6
 const MAX_TOTAL = MAX_TABLES * SEATS_PER_TABLE // 24
+const COLD_START_MIN = 6 // 冷启动最少参与人数：8 点开聊前至少要凑够 6 人
 
 const FALLBACK_TOPICS = [
   'AI 大模型是否正在取代人类的创造力？',
@@ -67,6 +69,57 @@ function isBarActive(): boolean {
   const now = new Date()
   const hour = now.getUTCHours() + 8 // CST = UTC+8
   return hour >= 20 // 8pm CST
+}
+
+function cstMinutes(): number {
+  const now = new Date()
+  return (now.getUTCHours() + 8) * 60 + now.getUTCMinutes()
+}
+
+// 晚上 7:50 起进入冷启动补位窗口（8 点正式开始发言）
+function isBarPrefillTime(): boolean {
+  return cstMinutes() >= 19 * 60 + 50
+}
+
+// 冷启动：晚上 7:50 后若真实吧友不足 6 人，自动补充「路过进来看看的」数字分身，
+// 凑够 6 人，确保 8 点准时有人开聊。补位规则与真实用户一致（先坐满 1 号吧台）。
+async function ensureBarColdStart(supabase: any, topic: any): Promise<void> {
+  if (!topic || topic.status === 'completed') return
+  if (!isBarPrefillTime()) return
+
+  const { data: current } = await supabase
+    .from('bar_sessions')
+    .select('table_num, seat_num')
+    .eq('topic_id', topic.id)
+
+  const sessions = current || []
+  if (sessions.length >= COLD_START_MIN) return
+
+  const taken = new Set(sessions.map((s: any) => `${s.table_num}-${s.seat_num}`))
+  const need = COLD_START_MIN - sessions.length
+
+  const freeSeats: Array<{ table_num: number; seat_num: number }> = []
+  outer: for (let t = 1; t <= MAX_TABLES; t++) {
+    for (let s = 1; s <= SEATS_PER_TABLE; s++) {
+      if (!taken.has(`${t}-${s}`)) {
+        freeSeats.push({ table_num: t, seat_num: s })
+        if (freeSeats.length >= need) break outer
+      }
+    }
+  }
+
+  for (const seat of freeSeats) {
+    const bot = makeBarBot()
+    // 并发补位可能撞唯一约束，忽略单条失败即可
+    await supabase.from('bar_sessions').insert({
+      topic_id: topic.id,
+      user_id: bot.user_id,
+      user_name: bot.user_name,
+      user_avatar: bot.user_avatar,
+      table_num: seat.table_num,
+      seat_num: seat.seat_num,
+    })
+  }
 }
 
 function isTopicPublished(): boolean {
@@ -131,7 +184,10 @@ async function generateSpeeches(supabase: any, topicId: string) {
 
   const participantList = sessions.map((s: any, i: number) => {
     const skill = skillMap[s.user_id]
-    return `${i + 1}. ${s.user_name}（风格：${skill?.desc ? skill.desc.slice(0, 60) : '知乎答主'}）`
+    const style = isBotUserId(s.user_id)
+      ? barBotPersona()
+      : (skill?.desc ? skill.desc.slice(0, 60) : '知乎答主')
+    return `${i + 1}. ${s.user_name}（风格：${style}）`
   }).join('\n')
 
   const prompt = `今天学术酒吧的议题是：「${topic.topic}」
@@ -234,6 +290,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!topic) {
         return json(res, 200, { topic: null, sessions: [], message: '今日议题将于上午 10 点发布' })
       }
+
+      // 冷启动：7:50 后人数不足则补充路人分身，凑够 6 人
+      await ensureBarColdStart(supabase, topic)
 
       const { data: sessions } = await supabase
         .from('bar_sessions')

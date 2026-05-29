@@ -226,7 +226,10 @@ export const api = {
         week_key: string; date?: string
       }
       // CST date (UTC+8)
-      if (!forceApi) {
+      // 晚 8 点后辩题可能因冷启动补位而进入辩论/完结状态，静态缓存（10 点快照）已过时，
+      // 此时直接走 API 以展示实时状态。
+      const cstHour = new Date(Date.now() + 8 * 3600 * 1000).getUTCHours()
+      if (!forceApi && cstHour < 20) {
         const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)
         try {
           const r = await fetch('/arena-topics.json', { cache: 'no-cache' })

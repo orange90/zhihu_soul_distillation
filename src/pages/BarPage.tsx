@@ -18,9 +18,10 @@ type HistoricalBarData = {
 }
 
 function Avatar({ url, name, size = 10 }: { url?: string | null; name: string; size?: number }) {
+  const [errored, setErrored] = useState(false)
   const cls = `rounded-full object-cover border-2 border-blue-600 shadow-md`
   const style = { width: `${size * 4}px`, height: `${size * 4}px` }
-  if (url) return <img src={url} alt={name} className={cls} style={style} />
+  if (url && !errored) return <img src={url} alt={name} className={cls} style={style} onError={() => setErrored(true)} />
   return (
     <div className={`${cls} bg-blue-700 flex items-center justify-center text-white font-bold`} style={style}>
       {name.slice(0, 1)}

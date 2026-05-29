@@ -3,8 +3,14 @@ import { badRequest, json, readBody, serverError, unauthorized } from './_lib/ht
 import { readSession } from './_lib/session.js'
 import { getSupabase } from './_lib/supabase.js'
 import { chatCompletion, extractFirstJson } from './_lib/zhihu.js'
+import { arenaBotPersona, isBotUserId, makeArenaBot } from './_lib/bots.js'
 
 const CATEGORIES = ['人文', '科技', '教育', '生物科学']
+
+// 晚 8 点开始辩论
+function isArenaDebateTime(): boolean {
+  return new Date().getUTCHours() + 8 >= 20 // 8pm CST
+}
 
 function getWeekKey(date = new Date()): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -158,7 +164,10 @@ async function generateDebate(supabase: any, topicId: string) {
 
   const describeDebater = (p: any) => {
     const skill = skillMap[p.user_id]
-    return `${p.user_name}（风格：${skill?.desc ? skill.desc.slice(0, 80) : '知乎答主'}）`
+    const style = isBotUserId(p.user_id)
+      ? arenaBotPersona()
+      : (skill?.desc ? skill.desc.slice(0, 80) : '知乎答主')
+    return `${p.user_name}（风格：${style}）`
   }
 
   const debatePrompt = `你是辩论赛AI主持人，负责以参与者的口吻生成一场精彩的辩论。
@@ -235,6 +244,8 @@ async function generateDebate(supabase: any, topicId: string) {
   if (debateData.winner === 'affirmative' || debateData.winner === 'negative') {
     const weekKey = topic.week_key
     for (const p of participants) {
+      // 冷启动的路人分身不计入周积分榜
+      if (isBotUserId(p.user_id)) continue
       const delta = p.side === debateData.winner ? 2 : -1
 
       // Ensure row exists first (insert if missing)
@@ -262,6 +273,75 @@ async function generateDebate(supabase: any, topicId: string) {
   }
 
   return debateData
+}
+
+// 冷启动：晚 8 点若某辩题正反方人数不足，自动补充「爱吵架的路人」数字分身，
+// 凑齐正反各 3 人后开辩。返回是否对该辩题做了改动（用于触发上层重新读取）。
+async function fillTopicWithBots(supabase: any, topicId: string): Promise<boolean> {
+  const { data: parts } = await supabase
+    .from('arena_participants')
+    .select('side, debater_pos, user_name')
+    .eq('topic_id', topicId)
+
+  const existing = parts || []
+  const usedWords = new Set<string>(
+    existing
+      .map((p: any) => p.user_name || '')
+      .filter((n: string) => n.startsWith('爱吵架的路人'))
+      .map((n: string) => n.replace('爱吵架的路人', ''))
+  )
+
+  const inserts: any[] = []
+  for (const side of ['affirmative', 'negative'] as const) {
+    const takenPos = new Set(
+      existing.filter((p: any) => p.side === side).map((p: any) => p.debater_pos)
+    )
+    for (const pos of [1, 2, 3]) {
+      if (takenPos.has(pos)) continue
+      const bot = makeArenaBot(usedWords)
+      inserts.push({
+        topic_id: topicId,
+        user_id: bot.user_id,
+        user_name: bot.user_name,
+        user_avatar: bot.user_avatar,
+        side,
+        debater_pos: pos,
+      })
+    }
+  }
+
+  let changed = false
+  if (inserts.length > 0) {
+    const { error } = await supabase.from('arena_participants').insert(inserts)
+    if (error) {
+      // 并发下可能撞唯一约束，交给下一次触发重试
+      console.error('[arena] cold-start insert failed', error.message)
+      return false
+    }
+    changed = true
+  }
+
+  // 满 6 人即开辩（与真实满员逻辑一致；也可重试此前卡在 open 的满员辩题）
+  if (existing.length + inserts.length >= 6) {
+    await supabase.from('arena_topics').update({ status: 'debating' }).eq('id', topicId)
+    generateDebate(supabase, topicId).catch(async (e) => {
+      console.error('[arena] cold-start debate generation failed', e)
+      await supabase.from('arena_topics').update({ status: 'open' }).eq('id', topicId)
+    })
+    changed = true
+  }
+
+  return changed
+}
+
+async function ensureArenaColdStart(supabase: any, topics: any[]): Promise<boolean> {
+  if (!isArenaDebateTime()) return false
+  let changed = false
+  for (const topic of topics) {
+    if (topic.status !== 'open') continue
+    if (await fillTopicWithBots(supabase, topic.id)) changed = true
+  }
+  return changed
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -307,11 +387,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // List current day's topics (daily refresh)
       await ensureDailyTopics(supabase, dayKey)
 
-      const { data: topics } = await supabase
+      const fetchTopics = () => supabase
         .from('arena_topics')
         .select('id, category, title, affirmative_view, negative_view, week_key, status, winner, ai_judgement')
         .eq('week_key', dayKey)
         .order('category')
+
+      let { data: topics } = await fetchTopics()
+
+      // 冷启动：晚 8 点后人数不足的辩题，自动补满路人分身并开辩
+      if (await ensureArenaColdStart(supabase, topics || [])) {
+        ;({ data: topics } = await fetchTopics())
+      }
 
       const { data: allParticipants } = await supabase
         .from('arena_participants')

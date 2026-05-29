@@ -28,8 +28,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 function Avatar({ url, name, size = 10 }: { url?: string | null; name: string; size?: number }) {
+  const [errored, setErrored] = useState(false)
   const cls = `w-${size} h-${size} rounded-full object-cover border-2 border-white shadow`
-  if (url) return <img src={url} alt={name} className={cls} />
+  if (url && !errored) return <img src={url} alt={name} className={cls} onError={() => setErrored(true)} />
   return (
     <div className={`w-${size} h-${size} rounded-full bg-zhihu-blue flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow`}>
       {name.slice(0, 1)}
