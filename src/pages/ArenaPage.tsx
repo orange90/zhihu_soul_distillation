@@ -150,7 +150,7 @@ function DebateView({ topic, participants }: { topic: Topic; participants: Parti
   return (
     <div className="flex flex-col gap-4">
       {/* Arena stage */}
-      <div className="relative bg-gradient-to-b from-blue-950 to-blue-900 rounded-3xl p-6 md:p-8 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-blue-950 to-blue-900 rounded-3xl p-6 md:p-8">
         <div className="absolute inset-0 opacity-10" style={{
           backgroundImage: 'radial-gradient(circle at 20% 50%, #60a5fa 0%, transparent 50%), radial-gradient(circle at 80% 50%, #818cf8 0%, transparent 50%)'
         }} />

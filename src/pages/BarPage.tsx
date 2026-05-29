@@ -241,8 +241,6 @@ export default function BarPage() {
     const duration = Math.max(4000, (speech.length / 25) * 1000 + 2000)
     playTimerRef.current = window.setTimeout(() => {
       setCurrentSpeakerIdx(i => i + 1)
-      const el = scrollRef.current?.querySelector(`[data-speech-idx="${currentSpeakerIdx + 1}"]`)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }, duration)
     return () => { if (playTimerRef.current) clearTimeout(playTimerRef.current) }
   }, [isPlaying, currentSpeakerIdx, speechSessions])
@@ -523,7 +521,7 @@ export default function BarPage() {
             </div>
 
             {/* Bar layout - Tables */}
-            <div className="mb-8">
+            <div className="relative z-10 mb-8">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 justify-items-center">
                 {[1, 2, 3, 4].map(tableNum => (
                   <div key={tableNum} className="rounded-2xl bg-white/3 backdrop-blur border border-white/8 p-5">
