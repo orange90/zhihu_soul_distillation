@@ -166,10 +166,18 @@ export default function HomePage() {
                     获取插件 Token
                   </button>
                   <a
-                    href="/extension"
+                    href="https://github.com/orange90/zhihu_soul_distillation/releases"
                     target="_blank"
                     rel="noopener"
                     className="text-xs px-3 py-1.5 rounded-full border border-zhihu-blue/40 text-zhihu-blue hover:bg-zhihu-blue/5"
+                  >
+                    下载插件（GitHub Releases）
+                  </a>
+                  <a
+                    href="https://github.com/orange90/zhihu_soul_distillation#浏览器插件蒸馏自己"
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50"
                   >
                     安装说明
                   </a>

@@ -1,0 +1,61 @@
+name: Release Extension
+
+# 当推送以 ext-v 开头的 tag 时（例：ext-v0.1.1），自动构建插件并发布 GitHub Release。
+# 手动触发也支持。
+on:
+  push:
+    tags:
+      - 'ext-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. ext-v0.1.1)'
+        required: true
+        default: 'ext-v0.1.1'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install extension deps
+        working-directory: extension
+        run: npm ci
+
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+
+      - name: Zip dist
+        working-directory: extension
+        run: |
+          TAG="${GITHUB_REF_NAME:-${{ inputs.tag }}}"
+          VERSION="${TAG#ext-v}"
+          mkdir -p releases
+          (cd dist && zip -r "../releases/zsd-extension-v${VERSION}.zip" .)
+          ls -la releases/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: 知识蒸馏馆浏览器插件 ${{ github.ref_name || inputs.tag }}
+          body: |
+            ## 安装方式
+            1. 下载下方 `zsd-extension-*.zip`
+            2. 解压到本地任意文件夹
+            3. 打开 Chrome / Edge，访问 `chrome://extensions`，打开右上角「开发者模式」
+            4. 点击「加载已解压的扩展程序」，选择解压后的文件夹
+            5. 在知识蒸馏馆首页点「获取插件 Token」，复制到插件 popup 即可
+
+            > 仅支持上传**你自己**的知乎回答，后端会逐条校验 author_id 与登录用户是否匹配。
+          files: extension/releases/zsd-extension-*.zip
+          fail_on_unmatched_files: true
