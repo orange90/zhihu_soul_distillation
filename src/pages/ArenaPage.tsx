@@ -168,7 +168,7 @@ function DebateView({ topic, participants }: { topic: Topic; participants: Parti
               )}
               {isGenerating && caughtUp && (
                 <div className="mt-2 text-blue-200 text-xs animate-pulse">
-                  {turns.length === 0 ? '辩手就位，正在生成开场陈词…' : '正在生成下一轮发言…'}
+                  {turns.length === 0 ? '辩手就位，正在生成开场陈词…' : '正在生成下一条发言…'}
                 </div>
               )}
             </div>
@@ -426,6 +426,7 @@ export default function ArenaPage() {
         listAdvancing.current = false
       }
     }
+    tick() // 进入页面立即开始推进，不必等首个轮询间隔
     const timer = setInterval(tick, 12000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [debatingIds])
@@ -447,7 +448,8 @@ export default function ArenaPage() {
         modalAdvancing.current = false
       }
     }
-    const timer = setInterval(tick, 10000)
+    tick() // 打开后立即生成第一条，不必等首个轮询间隔
+    const timer = setInterval(tick, 6000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [viewingTopic?.id, viewingTopic?.status])
 

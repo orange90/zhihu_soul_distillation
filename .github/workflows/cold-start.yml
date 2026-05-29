@@ -39,7 +39,7 @@ jobs:
           # 这里循环调用推进接口，直到辩论场全部完结、酒吧讨论结束（或达到最大轮次），
           # 确保即使没有访客打开页面也能准时产出发言。
           echo "Advancing debates & bar speeches to completion..."
-          for i in $(seq 1 8); do
+          for i in $(seq 1 12); do
             ARENA=$(curl -sL "${PRODUCTION_URL}/api/arena?action=advance")
             echo "arena advance #$i: $ARENA"
 
@@ -54,5 +54,5 @@ jobs:
               echo "All debates and bar discussion completed."
               break
             fi
-            sleep 15
+            sleep 5
           done

@@ -141,88 +141,67 @@ async function ensureDailyTopics(supabase: any, dayKey: string) {
   }
 }
 
-const ROUND_INFO: Record<number, { name: string; guide: string }> = {
-  1: { name: '开场陈词', guide: '正方一辩、反方一辩各 120-150 字，正方二/三辩、反方二/三辩各 90-120 字；亮明立场，给出核心论据' },
-  2: { name: '交锋反驳', guide: '每人 70-100 字，针对上一轮对方的具体论点进行有力反驳' },
-  3: { name: '总结收尾', guide: '每人 60-80 字，进行最终总结陈词，升华本方立场' },
+const ROUND_GUIDE: Record<number, string> = {
+  1: '开场陈词——亮明本方立场，给出最有力的核心论据',
+  2: '交锋反驳——针对前面对方辩手的具体论点进行有力反驳',
+  3: '总结收尾——总结并升华本方立场，给出有力的结辩',
 }
+const ROUND_LEN: Record<number, string> = { 1: '100-150字', 2: '70-100字', 3: '60-80字' }
 
-function describeDebater(p: any, skillMap: Record<string, { desc: string; markdown: string }>): string {
+function debaterStyle(p: any, skillMap: Record<string, { desc: string; markdown: string }>): string {
   const skill = skillMap[p.user_id]
-  const style = isBotUserId(p.user_id)
+  return isBotUserId(p.user_id)
     ? arenaBotPersona()
     : (skill?.desc ? skill.desc.slice(0, 80) : '知乎答主')
-  return `${p.user_name}（风格：${style}）`
 }
 
-// 生成「某一轮」的 6 段发言。发言人的身份信息以参数中的辩手为准（不信任 LLM 返回的 user_id），
-// 只取 LLM 生成的 content，避免身份错乱。
-async function generateDebateRound(
+// 生成「单个辩手的一段发言」。每次只生成一条，调用极快（数秒），即使函数最大时长很短也能稳定完成；
+// 只输出发言正文（不走 JSON 解析），最大限度避免格式解析失败导致的「永远生成不出来」。
+async function generateOneTurn(
   topic: any,
-  aff: any[],
-  neg: any[],
-  skillMap: Record<string, { desc: string; markdown: string }>,
+  speaker: any,
+  side: string,
+  position: number,
+  round: number,
   priorTurns: DebateTurn[],
-  round: number
-): Promise<DebateTurn[]> {
-  // 发言顺序：正一、反一、正二、反二、正三、反三
-  const order = [
-    { side: 'affirmative', p: aff[0] }, { side: 'negative', p: neg[0] },
-    { side: 'affirmative', p: aff[1] }, { side: 'negative', p: neg[1] },
-    { side: 'affirmative', p: aff[2] }, { side: 'negative', p: neg[2] },
-  ]
-  const info = ROUND_INFO[round]
+  skillMap: Record<string, { desc: string; markdown: string }>
+): Promise<string> {
+  const sideCn = side === 'affirmative' ? '正方' : '反方'
+  const stance = side === 'affirmative' ? topic.affirmative_view : topic.negative_view
   const priorText = priorTurns.length > 0
-    ? `\n\n【已进行的发言（请承接上下文、避免重复）】\n` + priorTurns.map(t =>
+    ? `\n\n【已进行的发言（请承接上下文、避免与前面重复）】\n` + priorTurns.map(t =>
         `第${t.round}轮·${t.side === 'affirmative' ? '正方' : '反方'}${t.position}辩 ${t.user_name}：${t.content}`
       ).join('\n')
     : ''
 
-  const speakerLines = order.map((o, i) =>
-    `${i + 1}. ${o.side === 'affirmative' ? '正方' : '反方'}${Math.floor(i / 2) + 1}辩 ${describeDebater(o.p, skillMap)}`
-  ).join('\n')
-
-  const prompt = `你是辩论赛AI主持人，正在主持一场辩论。
-
-辩论题目：${topic.title}
+  const prompt = `这是一场辩论赛。
+辩题：${topic.title}
 正方立场：${topic.affirmative_view}
 反方立场：${topic.negative_view}
 
-本轮是【第 ${round} 轮 · ${info.name}】，请严格按以下顺序生成 6 段发言（共 6 条，不多不少）：
-${speakerLines}
+现在轮到【${sideCn}${position}辩 ${speaker.user_name}】发言：
+- 立场：${sideCn}（${stance}）
+- 风格：${debaterStyle(speaker, skillMap)}
+- 环节：第 ${round} 轮 · ${ROUND_GUIDE[round]}
+- 字数：${ROUND_LEN[round]}${priorText}
 
-字数与要求：${info.guide}。每段要体现该辩手的个人风格特点。${priorText}
-
-只输出一个 JSON 数组，长度必须为 6，顺序与上面一致：
-[
-  {"content": "第1位（正方一辩）的发言"},
-  {"content": "第2位（反方一辩）的发言"},
-  ... 共 6 条 ...
-]`
+请直接以 ${speaker.user_name} 的口吻输出这一段发言正文，体现其风格。不要加「${speaker.user_name}：」之类前缀，不要引号，不要任何解释。`
 
   const result = await chatCompletion(
     [
-      { role: 'system', content: '你是一个辩论赛AI主持人，擅长模拟真实辩论场景，每位辩手的发言要体现不同的个性与风格。' },
+      { role: 'system', content: '你是辩论赛辩手代写，只输出该辩手这一轮的发言正文，简洁有力、有鲜明个人风格。' },
       { role: 'user', content: prompt }
     ],
-    { temperature: 0.8, timeoutMs: 50_000, maxRetries: 1 }
+    { temperature: 0.85, timeoutMs: 25_000, maxRetries: 1 }
   )
 
-  const arr = extractFirstJson<Array<{ content?: string }>>(result.content) || []
-  const turns: DebateTurn[] = order.map((o, i) => ({
-    side: o.side,
-    position: Math.floor(i / 2) + 1,
-    round,
-    user_id: o.p.user_id,
-    user_name: o.p.user_name,
-    user_avatar: o.p.user_avatar || '',
-    content: String(arr[i]?.content || '').trim(),
-  }))
-
-  if (turns.some(t => !t.content)) {
-    throw new Error(`round ${round} generation incomplete (got ${arr.length} items)`)
-  }
-  return turns
+  let content = (result.content || '').trim()
+  content = content.replace(/^["「『]+/, '').replace(/["」』]+$/, '').trim()
+  const prefix = `${speaker.user_name}：`
+  if (content.startsWith(prefix)) content = content.slice(prefix.length).trim()
+  const prefix2 = `${speaker.user_name}:`
+  if (content.startsWith(prefix2)) content = content.slice(prefix2.length).trim()
+  return content
 }
 
 // 辩论全部 3 轮完成后：让 AI 裁判判定胜负并结算积分。
@@ -290,16 +269,19 @@ async function finalizeDebate(supabase: any, topic: any, turns: DebateTurn[]): P
   }
 }
 
-// 推进一场辩论「一步」：生成下一轮发言（6 条）并落库；若 3 轮已满则结算。
-// 可重复调用、可断点续传（以已落库的发言条数为进度依据），适配 serverless 无后台任务的限制。
-// 由前端轮询触发，每次请求只做一轮，保证在函数最大时长内完成。
-async function advanceDebate(supabase: any, topicId: string): Promise<void> {
+// 推进一场辩论「一步」：生成下一位辩手的一段发言并落库；18 条满则结算。
+// 每次只生成一条，调用快、稳，适配 serverless 无后台任务、且函数最大时长可能很短的限制。
+// 可重复调用、可断点续传（以已落库发言条数为进度依据），由前端轮询 / 定时任务触发。
+// 返回 done=该辩论是否已完结、advanced=本次是否真的产出了一条发言。
+async function advanceDebate(supabase: any, topicId: string): Promise<{ done: boolean; advanced: boolean }> {
   const { data: topic } = await supabase
     .from('arena_topics')
     .select('*')
     .eq('id', topicId)
     .single()
-  if (!topic || topic.status !== 'debating') return
+  if (!topic) return { done: true, advanced: false }
+  if (topic.status === 'completed') return { done: true, advanced: false }
+  if (topic.status !== 'debating') return { done: true, advanced: false }
 
   const { data: participants } = await supabase
     .from('arena_participants')
@@ -309,20 +291,24 @@ async function advanceDebate(supabase: any, topicId: string): Promise<void> {
 
   const aff = (participants || []).filter((p: any) => p.side === 'affirmative').sort((a: any, b: any) => a.debater_pos - b.debater_pos)
   const neg = (participants || []).filter((p: any) => p.side === 'negative').sort((a: any, b: any) => a.debater_pos - b.debater_pos)
-  if (aff.length < 3 || neg.length < 3) return
+  if (aff.length < 3 || neg.length < 3) return { done: false, advanced: false }
 
   const turns: DebateTurn[] = Array.isArray(topic.debate_transcript) ? topic.debate_transcript : []
 
-  // 三轮已满 → 结算
+  // 18 条已满 → 结算
   if (turns.length >= TOTAL_TURNS) {
     if (!topic.winner) await finalizeDebate(supabase, topic, turns)
-    return
+    return { done: true, advanced: false }
   }
 
-  // 进度容错：若已落库条数不是整轮（异常中断），回退到上一整轮边界重新生成本轮
-  const round = Math.floor(turns.length / TURNS_PER_ROUND) + 1
-  const expectedLen = (round - 1) * TURNS_PER_ROUND
-  const priorTurns = turns.slice(0, expectedLen)
+  // 计算下一位发言者：每轮顺序为 正一、反一、正二、反二、正三、反三
+  const idx = turns.length
+  const round = Math.floor(idx / TURNS_PER_ROUND) + 1
+  const posInRound = idx % TURNS_PER_ROUND
+  const side = posInRound % 2 === 0 ? 'affirmative' : 'negative'
+  const position = Math.floor(posInRound / 2) + 1
+  const speaker = side === 'affirmative' ? aff[position - 1] : neg[position - 1]
+  if (!speaker) return { done: false, advanced: false }
 
   // 拉取本场辩手的蒸馏画像
   const userIds = (participants || []).map((p: any) => p.user_id)
@@ -335,26 +321,37 @@ async function advanceDebate(supabase: any, topicId: string): Promise<void> {
     skillMap[s.user_id] = { desc: s.skill_desc || '', markdown: s.skill_markdown || '' }
   }
 
-  const newTurns = await generateDebateRound(topic, aff, neg, skillMap, priorTurns, round)
+  const content = await generateOneTurn(topic, speaker, side, position, round, turns, skillMap)
+  if (!content) throw new Error(`empty turn content at idx ${idx}`)
 
-  // 落库前去重：重新读取，若进度已被其他请求推进则放弃本次（避免并发重复写入同一轮）
+  const newTurn: DebateTurn = {
+    side, position, round,
+    user_id: speaker.user_id,
+    user_name: speaker.user_name,
+    user_avatar: speaker.user_avatar || '',
+    content,
+  }
+
+  // 落库前去重：重新读取，若进度已被其他请求推进则放弃本次（避免并发重复写入同一条）
   const { data: fresh } = await supabase
     .from('arena_topics')
     .select('debate_transcript, status')
     .eq('id', topicId)
     .single()
-  if (!fresh || fresh.status !== 'debating') return
+  if (!fresh || fresh.status !== 'debating') return { done: fresh?.status === 'completed', advanced: false }
   const curTurns: DebateTurn[] = Array.isArray(fresh.debate_transcript) ? fresh.debate_transcript : []
-  if (curTurns.length !== expectedLen) return // 已有其他请求生成了本轮
+  if (curTurns.length !== idx) return { done: false, advanced: false } // 已被其他请求推进
 
-  const updated = [...priorTurns, ...newTurns]
+  const updated = [...curTurns, newTurn]
   await supabase.from('arena_topics')
     .update({ debate_transcript: updated })
     .eq('id', topicId)
 
   if (updated.length >= TOTAL_TURNS) {
     await finalizeDebate(supabase, topic, updated)
+    return { done: true, advanced: true }
   }
+  return { done: false, advanced: true }
 }
 
 // 冷启动：晚 8 点若某辩题正反方人数不足，自动补充「爱吵架的路人」数字分身，
@@ -438,26 +435,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const { topicId, action } = req.query as Record<string, string>
 
-      // 推进今日所有「辩论中」的辩题各一轮（并行）。供定时任务（cold-start.yml）在 8 点后
-      // 主动驱动生成直至完成，确保即使没有访客打开页面也能逐轮产出发言。
+      // 在时间预算内，轮转推进今日所有「辩论中」的辩题（每个 topic 每次一条发言）。
+      // 供定时任务（cold-start.yml）在 8 点后主动驱动生成直至完成，
+      // 确保即使没有访客打开页面也能逐条产出发言。
       if (action === 'advance') {
         const { data: debating } = await supabase
           .from('arena_topics')
           .select('id')
           .eq('week_key', dayKey)
           .eq('status', 'debating')
-        const ids = (debating || []).map((t: any) => t.id)
-        await Promise.all(
-          ids.map((id: string) =>
-            advanceDebate(supabase, id).catch(e => console.error('[arena] advance_all failed', e))
-          )
-        )
+        const active = new Set<string>((debating || []).map((t: any) => t.id))
+        const deadline = Date.now() + 45_000 // 控制在函数最大时长内
+        while (active.size > 0 && Date.now() < deadline) {
+          for (const id of Array.from(active)) {
+            if (Date.now() >= deadline) break
+            try {
+              const r = await advanceDebate(supabase, id)
+              if (r.done) active.delete(id)
+            } catch (e) {
+              console.error('[arena] advance_all failed', e)
+              // 留在集合中，下一轮 / 下次请求再试
+            }
+          }
+        }
         const { data: still } = await supabase
           .from('arena_topics')
           .select('id')
           .eq('week_key', dayKey)
           .eq('status', 'debating')
-        return json(res, 200, { advanced: ids.length, in_progress: (still || []).length > 0 })
+        return json(res, 200, { in_progress: (still || []).length > 0 })
       }
 
       // Leaderboard (merged from leaderboard.ts)
@@ -632,15 +638,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq('id', topic_id)
           .neq('status', 'completed')
 
-        // 逐轮推进直到结算完成（手动/兜底用；最多 TOTAL_ROUNDS + 1 次）
-        for (let i = 0; i < TOTAL_ROUNDS + 1; i++) {
-          const { data: t } = await supabase
-            .from('arena_topics')
-            .select('status')
-            .eq('id', topic_id)
-            .single()
-          if (t?.status === 'completed') break
-          await advanceDebate(supabase, topic_id)
+        // 逐条推进直到结算完成（手动/兜底用；上限留足冗余）
+        for (let i = 0; i < TOTAL_TURNS + 2; i++) {
+          const r = await advanceDebate(supabase, topic_id)
+          if (r.done) break
         }
 
         const { data: done } = await supabase
