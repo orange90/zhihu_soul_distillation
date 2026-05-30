@@ -296,7 +296,7 @@ export default function ArenaDebateViewPage() {
                       <span className="text-white/30 text-[10px]">辩论桌</span>
                     )}
                   </div>
-                  <div className="bg-[#080f1e]/50 p-4 min-h-[130px] flex flex-col justify-start">
+                  <div className="bg-[#080f1e]/50 p-4 h-[200px] overflow-y-auto scroll-thin flex flex-col justify-start">
                     {currentTurn ? (
                       <div key={currentTurnIdx} className="animate-fade-in">
                         <div className="text-white/50 text-[10px] mb-2">
@@ -376,7 +376,7 @@ export default function ArenaDebateViewPage() {
                     <span className="text-white/30 text-[10px]">辩论桌</span>
                   )}
                 </div>
-                <div className="bg-[#080f1e]/50 p-4 min-h-[90px] flex flex-col justify-start">
+                <div className="bg-[#080f1e]/50 p-4 h-[180px] overflow-y-auto scroll-thin flex flex-col justify-start">
                   {currentTurn ? (
                     <div key={currentTurnIdx} className="animate-fade-in">
                       <div className="text-white/50 text-[10px] mb-1.5">
