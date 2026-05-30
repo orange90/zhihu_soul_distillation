@@ -50,7 +50,9 @@ async function fetchZhihuHotList(hours = 24): Promise<string[]> {
         'Authorization': `Bearer ${appSecret}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+      },
+      // 收紧超时：热榜不可达时快速失败回退，避免拖垮整个 serverless 函数（最长 60s）
+      signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return []
     const j: any = await res.json()
