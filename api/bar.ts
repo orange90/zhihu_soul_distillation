@@ -84,16 +84,12 @@ function isBarPrefillTime(): boolean {
   return cstMinutes() >= 19 * 60 + 50
 }
 
-// 冷启动：晚上 7:50 后若真实吧友不足 6 人，自动补充「路过进来看看的」数字分身，
-// 凑够 6 人，确保 8 点准时有人开聊。补位规则与真实用户一致（先坐满 1 号吧台）。
-async function ensureBarColdStart(supabase: any, topic: any): Promise<void> {
-  if (!topic || topic.status === 'completed') return
-  if (!isBarPrefillTime()) return
-
+// 核心补位逻辑：为指定 topic 填满至 COLD_START_MIN 人的路人分身（不含时间限制）。
+async function fillBarWithBots(supabase: any, topicId: string): Promise<void> {
   const { data: current } = await supabase
     .from('bar_sessions')
     .select('table_num, seat_num')
-    .eq('topic_id', topic.id)
+    .eq('topic_id', topicId)
 
   const sessions = current || []
   if (sessions.length >= COLD_START_MIN) return
@@ -115,14 +111,22 @@ async function ensureBarColdStart(supabase: any, topic: any): Promise<void> {
     const bot = makeBarBot()
     // 并发补位可能撞唯一约束，忽略单条失败即可
     await supabase.from('bar_sessions').insert({
-      topic_id: topic.id,
+      topic_id: topicId,
       user_id: bot.user_id,
       user_name: bot.user_name,
       user_avatar: bot.user_avatar,
       table_num: seat.table_num,
       seat_num: seat.seat_num,
-    })
+    }).catch(() => {})
   }
+}
+
+// 冷启动：晚上 7:50 后若真实吧友不足 6 人，自动补充「路过进来看看的」数字分身，
+// 凑够 6 人，确保 8 点准时有人开聊。补位规则与真实用户一致（先坐满 1 号吧台）。
+async function ensureBarColdStart(supabase: any, topic: any): Promise<void> {
+  if (!topic || topic.status === 'completed') return
+  if (!isBarPrefillTime()) return
+  await fillBarWithBots(supabase, topic.id)
 }
 
 function isTopicPublished(): boolean {
@@ -442,6 +446,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (joinErr) return serverError(res, new Error(joinErr.message))
 
         return json(res, 200, { joined: true, table_num: tableNum, seat_num: seatNum })
+      }
+
+      if (body.action === 'test_fill') {
+        // Dev/test: 强制创建今日议题、补满路人分身、设为 active（绕过时间检查）
+        const dateKey = getTodayKey()
+        let topic: any
+        const { data: existing } = await supabase
+          .from('bar_topics').select('*').eq('date_key', dateKey).maybeSingle()
+        if (existing) {
+          topic = existing
+        } else {
+          const hotTopics = await fetchZhihuHotTopics(24)
+          const topicText = await pickAcademicTopic(hotTopics, dateKey)
+          const { data: created } = await supabase
+            .from('bar_topics')
+            .insert({ topic: topicText, date_key: dateKey, status: 'open' })
+            .select().single()
+          topic = created
+        }
+        if (!topic) return json(res, 500, { error: '创建议题失败' })
+        if (topic.status === 'completed') return json(res, 409, { error: '今日讨论已结束' })
+
+        await fillBarWithBots(supabase, topic.id)
+        await supabase.from('bar_topics')
+          .update({ status: 'active' })
+          .eq('id', topic.id)
+          .neq('status', 'completed')
+
+        return json(res, 200, {
+          ok: true,
+          topic_id: topic.id,
+          topic: topic.topic,
+          message: '已填充路人并启动酒吧，刷新页面即可看到发言生成进度'
+        })
       }
 
       return badRequest(res, 'unknown action')
