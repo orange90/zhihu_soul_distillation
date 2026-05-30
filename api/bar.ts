@@ -358,39 +358,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return json(res, 200, { topic: null, sessions: [], message: '今日议题将于上午 10 点发布' })
       }
 
-      // 冷启动：7:50 后人数不足则补充路人分身，凑够 6 人
-      await ensureBarColdStart(supabase, topic)
-
-      const { data: sessions } = await supabase
-        .from('bar_sessions')
-        .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
-        .eq('topic_id', topic.id)
-        .order('table_num').order('seat_num')
-
       let finalTopic = topic
-      let finalSessions = sessions || []
+      let finalSessions: any[] = []
 
-      // 8 点后讨论进行中：每次拉取时推进一批发言生成（前端轮询驱动，断点续传）。
-      // 不能在响应返回后 fire-and-forget——serverless 会冻结函数，后台任务跑不完。
-      if (isBarActive() && topic.status !== 'completed' && finalSessions.length > 0) {
-        if (topic.status !== 'active') {
-          await supabase.from('bar_topics')
-            .update({ status: 'active' })
-            .eq('id', topic.id)
-            .neq('status', 'completed')
+      // 议题一旦创建/存在就必须能返回——补位与发言生成（含 LLM 调用）放到本块内，
+      // 任何失败/超时都只降级为「先展示议题、发言稍后再补」，绝不让整个响应 500。
+      // 之前这些步骤裸跑在外层，一旦 advanceBar 的 LLM 调用把单次请求拖过 60s 函数上限，
+      // Vercel 直接杀进程返回 500，前端就显示「议题没发布」。
+      try {
+        // 冷启动：7:50 后人数不足则补充路人分身，凑够 6 人
+        await ensureBarColdStart(supabase, topic)
+
+        const { data: sessions } = await supabase
+          .from('bar_sessions')
+          .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
+          .eq('topic_id', topic.id)
+          .order('table_num').order('seat_num')
+        finalSessions = sessions || []
+
+        // 8 点后讨论进行中：每次拉取时推进一批发言生成（前端轮询驱动，断点续传）。
+        // 不能在响应返回后 fire-and-forget——serverless 会冻结函数，后台任务跑不完。
+        if (isBarActive() && topic.status !== 'completed' && finalSessions.length > 0) {
+          if (topic.status !== 'active') {
+            await supabase.from('bar_topics')
+              .update({ status: 'active' })
+              .eq('id', topic.id)
+              .neq('status', 'completed')
+          }
+          await advanceBar(supabase, topic.id).catch(e => console.error('[bar] advance failed', e))
+
+          // 重新拉取最新状态返回
+          const [{ data: t2 }, { data: s2 }] = await Promise.all([
+            supabase.from('bar_topics').select('*').eq('id', topic.id).maybeSingle(),
+            supabase.from('bar_sessions')
+              .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
+              .eq('topic_id', topic.id)
+              .order('table_num').order('seat_num')
+          ])
+          if (t2) finalTopic = t2
+          if (s2) finalSessions = s2
         }
-        await advanceBar(supabase, topic.id).catch(e => console.error('[bar] advance failed', e))
-
-        // 重新拉取最新状态返回
-        const [{ data: t2 }, { data: s2 }] = await Promise.all([
-          supabase.from('bar_topics').select('*').eq('id', topic.id).single(),
-          supabase.from('bar_sessions')
-            .select('user_id, user_name, user_avatar, table_num, seat_num, speech, generated_at')
-            .eq('topic_id', topic.id)
-            .order('table_num').order('seat_num')
-        ])
-        if (t2) finalTopic = t2
-        if (s2) finalSessions = s2
+      } catch (e) {
+        console.error('[bar] post-topic step failed, returning topic anyway', e)
       }
 
       return json(res, 200, {
