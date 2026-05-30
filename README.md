@@ -54,6 +54,7 @@ api/                         Vercel Serverless Functions（12 个）
     supabase.ts              Supabase 客户端
     session.ts               HMAC 签名 Cookie Session
     http.ts                  统一 JSON 响应
+    cors.ts                  跨域请求头工具
     types.ts                 共享类型
     bots.ts                  冷启动「路人数字分身」生成 / 识别工具
   auth/
@@ -73,16 +74,26 @@ src/
   pages/
     HomePage.tsx             首页（登录 + 两大入口）
     MyDistillationsPage.tsx  我的蒸馏管理
-    ArenaPage.tsx            竞技场
+    ArenaPage.tsx            竞技场（辩题列表 / 加入 / 积分榜入口）
+    ArenaDebateViewPage.tsx  辩论观看页（专属辩论桌 + 逐条气泡回放）
     BarPage.tsx              学术酒吧
     LeaderboardPage.tsx      周积分榜
     SelectPage.tsx           选择答主（保留兼容）
     LoadingPage.tsx          蒸馏进度
     ResultPage.tsx           集体人格对话（保留兼容）
     DebatePage.tsx           多人辩论（保留兼容）
-  components/Layout.tsx      顶部导航 + 底部页脚
+  components/
+    Layout.tsx               顶部导航 + 底部页脚
+    Markdown.tsx             Markdown 渲染（发言 / 裁判评语）
+    SkillCard.tsx            蒸馏评级卡片（支持导出为图片）
+    Watermark.tsx            水印层（用于技能卡片导出）
   lib/api.ts                 前端 API 客户端
+public/
+  arena-topics.json          每日辩题静态缓存（由 GitHub Actions 预生成）
+scripts/
+  update-arena-topics.py     辩题 JSON 更新脚本（由 update-arena-topics.yml 调用）
 supabase/schema.sql          建表 SQL（含竞技场 / 酒吧 / 蒸馏结果表）
+dev-server.ts                本地 Express 开发服务器（vercel dev 的替代方案）
 vercel.json                  Vercel 部署配置
 ```
 
@@ -118,13 +129,29 @@ vercel.json                  Vercel 部署配置
    vercel dev
    ```
 
+   也可直接用内置的 Express 开发服务器（无需 Vercel CLI，仅限 API 调试）：
+
+   ```bash
+   npx ts-node dev-server.ts
+   ```
+
+5. 开发调试工具：在浏览器控制台提供了两个辅助函数，可手动触发发言生成：
+
+   ```js
+   window.test_debate(topicId)   // 触发指定辩题的辩论发言
+   window.test_bar(tableIndex)   // 触发指定吧台（0-4）的酒吧发言
+   ```
+
 ## 部署（Vercel Hobby Plan）
 
 1. 将仓库导入 Vercel，Framework 自动识别为 Vite。
 2. Project Settings → Environment Variables 添加上述全部变量（生产 `ZHIHU_REDIRECT_URI` 改为 `https://<your-app>.vercel.app/api/auth/callback`）。
 3. 在知乎开放平台授权回调中加入生产回调地址。
 4. 本项目 API 共 **12 个** Serverless Functions，刚好符合 Hobby 计划上限。
-5. （可选）冷启动定时触发：在 Settings → Secrets and variables → Actions → Variables 添加 `PRODUCTION_URL=https://<your-app>.vercel.app`，GitHub Actions 会在 19:50 / 20:00 CST 自动访问 `/api/bar`、`/api/arena` 触发路人分身补位，无需访客也能准时开场（见 `.github/workflows/cold-start.yml`）。
+5. （可选）定时 GitHub Actions：在 Settings → Secrets and variables → Actions → Variables 添加 `PRODUCTION_URL=https://<your-app>.vercel.app`，启用以下三个工作流：
+   - `cold-start.yml`：每天 19:50 / 20:00 CST 自动访问 `/api/bar`、`/api/arena`，触发路人分身补位，确保准时开场。
+   - `update-arena-topics.yml`：每天 10:00 CST 从生产 API 拉取并提交当日辩题到 `public/arena-topics.json`，前端直接读取静态文件，无需等待 AI 实时生成。
+   - `release-extension.yml`：推送新 tag 时自动打包浏览器插件并发布到 GitHub Releases。
 
 ## 浏览器插件（蒸馏自己）
 
