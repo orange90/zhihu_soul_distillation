@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toPng } from 'html-to-image'
 import { api } from '../lib/api'
 
 type ScoreEntry = {
   user_id: string; user_name: string; user_avatar: string | null; score: number; rank: number
 }
 
-function Avatar({ url, name, size = 10 }: { url?: string | null; name: string; size?: number }) {
+function Avatar({ url, name, size = 10, crossOrigin }: { url?: string | null; name: string; size?: number; crossOrigin?: 'anonymous' }) {
   const cls = `rounded-full object-cover border-2 border-white shadow`
   const style = { width: `${size * 4}px`, height: `${size * 4}px` }
-  if (url) return <img src={url} alt={name} className={cls} style={style} />
+  if (url) return <img src={url} alt={name} className={cls} style={style} crossOrigin={crossOrigin} />
   return (
     <div className={`${cls} bg-zhihu-blue flex items-center justify-center text-white font-bold text-base`} style={style}>
       {name.slice(0, 1)}
@@ -28,8 +29,26 @@ function SharePoster({ user, rank, weekKey, onClose }: {
   user: ScoreEntry; rank: number; weekKey: string; onClose: () => void
 }) {
   const posterRef = useRef<HTMLDivElement>(null)
+  const [exporting, setExporting] = useState(false)
 
   const rankLabel = rank === 1 ? '第 1 名 🥇' : rank === 2 ? '第 2 名 🥈' : rank === 3 ? '第 3 名 🥉' : `第 ${rank} 名`
+
+  const handleSaveImage = async () => {
+    if (!posterRef.current || exporting) return
+    setExporting(true)
+    try {
+      const dataUrl = await toPng(posterRef.current, { cacheBust: true, pixelRatio: 2 })
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = `知识蒸馏馆-周积分榜-${user.user_name}.png`
+      a.click()
+    } catch (e) {
+      console.error('poster export failed', e)
+      alert('图片生成失败，请重试')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div
@@ -49,7 +68,7 @@ function SharePoster({ user, rank, weekKey, onClose }: {
             知识蒸馏馆 · 竞技场
           </div>
           <div className="flex justify-center mb-4">
-            <Avatar url={user.user_avatar} name={user.user_name} size={16} />
+            <Avatar url={user.user_avatar} name={user.user_name} size={16} crossOrigin="anonymous" />
           </div>
           <div className="font-bold text-xl mb-1">{user.user_name}</div>
           <div className="text-blue-200 text-sm mb-4">本周积分：{user.score} 分</div>
@@ -63,21 +82,30 @@ function SharePoster({ user, rank, weekKey, onClose }: {
           </div>
         </div>
 
-        <div className="p-4 flex gap-3">
-          <button
-            onClick={() => {
-              // Simple copy the text representation
-              navigator.clipboard.writeText(
-                `我在知识蒸馏馆竞技场中获得了 ${rankLabel}！本周积分 ${user.score} 分。快来 zhihusoul.cn 挑战我！`
-              ).then(() => alert('已复制分享文字！'))
-            }}
-            className="flex-1 py-2 rounded-full bg-zhihu-blue text-white text-sm font-medium hover:bg-blue-700"
-          >
-            复制分享文字
-          </button>
+        <div className="p-4 space-y-3">
+          <div className="flex gap-3">
+            <button
+              onClick={handleSaveImage}
+              disabled={exporting}
+              className="flex-1 py-2 rounded-full bg-zhihu-blue text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+            >
+              {exporting ? '生成中…' : '保存图片'}
+            </button>
+            <button
+              onClick={() => {
+                // Simple copy the text representation
+                navigator.clipboard.writeText(
+                  `我在知识蒸馏馆竞技场中获得了 ${rankLabel}！本周积分 ${user.score} 分。快来 zhihusoul.cn 挑战我！`
+                ).then(() => alert('已复制分享文字！'))
+              }}
+              className="flex-1 py-2 rounded-full border border-zhihu-blue text-zhihu-blue text-sm font-medium hover:bg-blue-50"
+            >
+              复制文字
+            </button>
+          </div>
           <button
             onClick={onClose}
-            className="flex-1 py-2 rounded-full border border-gray-200 text-gray-600 text-sm"
+            className="w-full py-2 rounded-full border border-gray-200 text-gray-600 text-sm"
           >
             关闭
           </button>
