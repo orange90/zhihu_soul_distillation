@@ -76,9 +76,16 @@ function SharePoster({ user, rank, weekKey, onClose }: {
             <div className="text-4xl font-black mb-1">{rankLabel}</div>
             <div className="text-blue-200 text-sm">{weekKey} 周积分榜</div>
           </div>
-          <div className="border-t border-white/20 pt-4 text-blue-200 text-xs">
-            <div className="mb-1">用 AI 数字分身参加辩论，赢 +2 / 负 -1</div>
-            <div className="font-mono text-blue-300">zhihusoul.cn</div>
+          <div className="border-t border-white/20 pt-4 flex items-center justify-between gap-3 text-left">
+            <div className="text-blue-200 text-xs">
+              <div className="mb-1">用 AI 数字分身参加辩论，赢 +2 / 负 -1</div>
+              <div className="font-mono text-blue-300">zhihusoul.cn</div>
+            </div>
+            <img
+              src="/qrcode.png"
+              alt="二维码"
+              className="w-16 h-16 rounded-lg bg-white p-1 shrink-0"
+            />
           </div>
         </div>
 
