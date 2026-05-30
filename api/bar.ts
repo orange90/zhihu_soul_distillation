@@ -65,7 +65,10 @@ async function pickAcademicTopic(hotTopics: string[], dateKey: string): Promise<
 }
 
 function getTodayKey(): string {
-  return new Date().toISOString().slice(0, 10)
+  // 以东八区（CST）为准计算「今天」，与 10 点发布 / 8 点开聊的时区保持一致，
+  // 避免用 UTC 日期导致凌晨时段（CST 00:00-08:00）错算成前一天。
+  const cst = new Date(Date.now() + 8 * 3600 * 1000)
+  return cst.toISOString().slice(0, 10)
 }
 
 function isBarActive(): boolean {
@@ -150,16 +153,30 @@ async function ensureTodayTopic(supabase: any): Promise<any> {
     return null
   }
 
-  // Fetch hot topics and pick the most academic one
+  // 选题：优先用知乎热榜挑学术议题；fetch/LLM 失败时 pickAcademicTopic 会回退到
+  // 内置 FALLBACK_TOPICS，确保「每天都有议题」而不是因为外部依赖挂掉就没有议题。
   const hotTopics = await fetchZhihuHotTopics(24)
   const topic = await pickAcademicTopic(hotTopics, dateKey)
 
   const status = isBarActive() ? 'active' : 'open'
-  const { data: created } = await supabase
+  const { data: created, error: insertErr } = await supabase
     .from('bar_topics')
     .insert({ topic, date_key: dateKey, status })
     .select()
     .single()
+
+  // date_key 有唯一约束：并发下（定时任务与访客 / 多个访客同时）只会有一条插入成功，
+  // 其余会撞唯一约束报错并返回 null。此处回查既有议题返回，避免竞态时误判为「未发布」。
+  if (insertErr || !created) {
+    const { data: again } = await supabase
+      .from('bar_topics')
+      .select('*')
+      .eq('date_key', dateKey)
+      .maybeSingle()
+    if (again) return again
+    console.error('[bar] create today topic failed', insertErr)
+    return null
+  }
 
   return created
 }
