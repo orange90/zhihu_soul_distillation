@@ -67,12 +67,64 @@ async function fetchZhihuHotList(hours = 24): Promise<string[]> {
   }
 }
 
+// 每个类别一组备用议题，按"天"轮换选取。即使 LLM 出题失败回退到此，
+// 也不会每天都出一模一样的题（修复"今天和昨天议题相同"）。
+const FALLBACK_POOL: Record<string, Array<{ title: string; affirmative_view: string; negative_view: string }>> = {
+  '人文': [
+    { title: 'AI 创作应被认定为真正的艺术吗', affirmative_view: '应该，AI 艺术代表创意新边界', negative_view: '不应该，真正艺术源于人类情感' },
+    { title: '短视频正在重塑还是摧毁深度阅读', affirmative_view: '重塑，碎片化是新的认知方式', negative_view: '摧毁，让人丧失长文思考力' },
+    { title: '经典文学在 AI 写作时代是否仍不可替代', affirmative_view: '不可替代，承载人类精神内核', negative_view: '会被取代，AI 已能批量产出' },
+    { title: '网络流行语是在丰富还是污染汉语', affirmative_view: '丰富，是语言鲜活的生命力', negative_view: '污染，正在瓦解表达的精确' },
+  ],
+  '科技': [
+    { title: '大模型的涌现能力是真实质变还是幻觉', affirmative_view: '是真实质变，代表智能新层级', negative_view: '是统计幻觉，本质仍是模式匹配' },
+    { title: '全自动驾驶应该被允许全面上路吗', affirmative_view: '应该，总体远比人类司机安全', negative_view: '不应该，责任与伦理尚无解' },
+    { title: '人脑接口该不该向健康人群开放', affirmative_view: '该，是认知能力的下一次跃迁', negative_view: '不该，风险与不平等不可控' },
+    { title: '开源大模型比闭源更有利于人类吗', affirmative_view: '更有利，透明可控加速创新', negative_view: '更危险，滥用门槛被大幅拉低' },
+  ],
+  '教育': [
+    { title: '全面推广 AI 辅助学习会让学生更聪明吗', affirmative_view: '会，AI 释放认知带宽提升思维', negative_view: '不会，反而会侵蚀独立思考能力' },
+    { title: '该不该取消中小学的家庭作业', affirmative_view: '该取消，把时间还给真实成长', negative_view: '不该，作业是必要的巩固训练' },
+    { title: '名校学历在 AI 时代是否还值得追逐', affirmative_view: '值得，资源与圈层仍是壁垒', negative_view: '不值得，能力比文凭更重要' },
+    { title: '该不该允许学生用 AI 完成作业', affirmative_view: '该，AI 是这个时代的基本工具', negative_view: '不该，会架空学习的过程' },
+  ],
+  '生物科学': [
+    { title: '基因编辑应该被允许用于人类胚胎增强吗', affirmative_view: '应该，是消除遗传疾病的进步', negative_view: '不应该，带来不可控伦理风险' },
+    { title: '人类追求"长生不老"是进步还是灾难', affirmative_view: '是进步，延寿是文明终极目标', negative_view: '是灾难，将撕裂资源与代际' },
+    { title: '该不该用基因技术复活已灭绝物种', affirmative_view: '该，是修复生态的负责之举', negative_view: '不该，会扰乱现有生态平衡' },
+    { title: '合成生物制造的人造肉该全面替代养殖吗', affirmative_view: '该，更环保且可持续', negative_view: '不该，长期安全性尚未验证' },
+  ],
+}
+
+function fallbackFor(category: string, dayKey: string): { title: string; affirmative_view: string; negative_view: string } {
+  const pool = FALLBACK_POOL[category]
+  if (!pool || pool.length === 0) return { title: `${category}今日议题`, affirmative_view: '正方', negative_view: '反方' }
+  // 用日期换算成"自纪元起的天数"做索引，保证逐日轮换且当天稳定
+  const dayNum = Math.floor(new Date(`${dayKey}T00:00:00Z`).getTime() / 86_400_000)
+  return pool[((dayNum % pool.length) + pool.length) % pool.length]
+}
+
 async function ensureDailyTopics(supabase: any, dayKey: string) {
+  // 每日刷新：清空非今日的旧议题（含昨天的），辩论场只保留当天议题
+  await supabase.from('arena_topics').delete().neq('week_key', dayKey)
+
+  // 读取今日议题并按类别去重（清理历史并发产生的重复，保留最早一条）
   const { data: existing } = await supabase
     .from('arena_topics')
-    .select('category')
+    .select('id, category, created_at')
     .eq('week_key', dayKey)
-  const existingCats = new Set((existing || []).map((t: any) => t.category))
+    .order('created_at', { ascending: true })
+
+  const existingCats = new Set<string>()
+  const dupIds: string[] = []
+  for (const t of (existing || [])) {
+    if (existingCats.has(t.category)) dupIds.push(t.id)
+    else existingCats.add(t.category)
+  }
+  if (dupIds.length > 0) {
+    await supabase.from('arena_topics').delete().in('id', dupIds)
+  }
+
   const missing = CATEGORIES.filter(c => !existingCats.has(c))
   if (missing.length === 0) return
 
@@ -112,35 +164,39 @@ async function ensureDailyTopics(supabase: any, dayKey: string) {
       category: string; title: string; affirmative_view: string; negative_view: string
     }>>(result.content) || []
 
-    const rows = topics.map(t => ({
-      category: t.category,
-      title: t.title,
-      affirmative_view: t.affirmative_view,
-      negative_view: t.negative_view,
-      week_key: dayKey,
-      status: 'open'
-    }))
+    // 只插入仍缺失的类别，且每个类别至多一条，避免重复
+    const missingSet = new Set(missing)
+    const rows = topics
+      .filter(t => missingSet.has(t.category) && missingSet.delete(t.category))
+      .map(t => ({
+        category: t.category,
+        title: t.title,
+        affirmative_view: t.affirmative_view,
+        negative_view: t.negative_view,
+        week_key: dayKey,
+        status: 'open'
+      }))
 
     if (rows.length > 0) {
-      await supabase.from('arena_topics').insert(rows)
+      // onConflict 去重：并发请求同时出题时，靠 (week_key, category) 唯一约束兜底，不产生重复卡片
+      await supabase.from('arena_topics')
+        .upsert(rows, { onConflict: 'week_key,category', ignoreDuplicates: true })
     }
   } catch (e) {
-    const fallbacks: Record<string, { title: string; affirmative_view: string; negative_view: string }> = {
-      '人文': { title: 'AI 创作应被认定为真正的艺术吗', affirmative_view: '应该，AI 艺术代表创意新边界', negative_view: '不应该，真正艺术源于人类情感' },
-      '科技': { title: '大模型的涌现能力是真实质变还是幻觉', affirmative_view: '是真实质变，代表智能新层级', negative_view: '是统计幻觉，本质仍是模式匹配' },
-      '教育': { title: '全面推广 AI 辅助学习会让学生更聪明吗', affirmative_view: '会，AI 释放认知带宽提升思维', negative_view: '不会，反而会侵蚀独立思考能力' },
-      '生物科学': { title: '基因编辑应该被允许用于人类胚胎增强吗', affirmative_view: '应该，是消除遗传疾病的进步', negative_view: '不应该，带来不可控伦理风险' }
-    }
-    const fallbackRows = missing.filter(c => fallbacks[c]).map(c => ({
-      category: c,
-      title: fallbacks[c].title,
-      affirmative_view: fallbacks[c].affirmative_view,
-      negative_view: fallbacks[c].negative_view,
-      week_key: dayKey,
-      status: 'open'
-    }))
+    const fallbackRows = missing.map(c => {
+      const f = fallbackFor(c, dayKey)
+      return {
+        category: c,
+        title: f.title,
+        affirmative_view: f.affirmative_view,
+        negative_view: f.negative_view,
+        week_key: dayKey,
+        status: 'open'
+      }
+    })
     if (fallbackRows.length > 0) {
-      await supabase.from('arena_topics').insert(fallbackRows)
+      await supabase.from('arena_topics')
+        .upsert(fallbackRows, { onConflict: 'week_key,category', ignoreDuplicates: true })
     }
   }
 }

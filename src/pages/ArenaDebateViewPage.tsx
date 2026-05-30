@@ -106,7 +106,6 @@ export default function ArenaDebateViewPage() {
   const [currentTurnIdx, setCurrentTurnIdx] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
 
-  const scrollRef = useRef<HTMLDivElement>(null)
   const advancingRef = useRef(false)
   const timerRef = useRef<number | null>(null)
 
@@ -157,13 +156,6 @@ export default function ArenaDebateViewPage() {
     timerRef.current = window.setTimeout(() => setCurrentTurnIdx(i => i + 1), delay)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [currentTurnIdx, isPlaying, turns])
-
-  // Scroll transcript to active turn
-  useEffect(() => {
-    scrollRef.current
-      ?.querySelector(`[data-idx="${currentTurnIdx}"]`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [currentTurnIdx])
 
   if (loading) {
     return (
@@ -522,7 +514,7 @@ export default function ArenaDebateViewPage() {
               )}
             </span>
           </div>
-          <div ref={scrollRef} className="max-h-[480px] overflow-y-auto divide-y divide-gray-50 scroll-thin">
+          <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-50 scroll-thin">
             {turns.length === 0 && (
               <div className="text-center py-14 text-sm text-gray-400">
                 {isGenerating ? '辩手正在组织语言，发言将陆续出现…' : '暂无发言记录'}
