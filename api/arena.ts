@@ -50,7 +50,9 @@ async function fetchZhihuHotList(hours = 24): Promise<string[]> {
         'Authorization': `Bearer ${appSecret}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+      },
+      // 收紧超时：热榜不可达时快速失败回退，避免拖垮整个 serverless 函数（最长 60s）
+      signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return []
     const j: any = await res.json()
@@ -102,7 +104,9 @@ async function ensureDailyTopics(supabase: any, dayKey: string) {
   try {
     const result = await chatCompletion(
       [{ role: 'user', content: prompt }],
-      { temperature: 0.85, timeoutMs: 30_000 }
+      // 收紧超时：30s×(1+重试) 最坏接近 60s 函数上限会被 Vercel 杀掉→ /api/arena 非 200。
+      // 限到 18s 且仅重试 1 次，挂掉时快速落入下方 catch 用内置 fallback 题目兜底。
+      { temperature: 0.85, timeoutMs: 18_000, maxRetries: 1 }
     )
     const topics = extractFirstJson<Array<{
       category: string; title: string; affirmative_view: string; negative_view: string

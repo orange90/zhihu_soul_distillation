@@ -35,7 +35,9 @@ async function fetchZhihuHotTopics(hours = 24): Promise<string[]> {
         'Authorization': `Bearer ${appSecret}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      }
+      },
+      // 收紧超时：热榜不可达时快速失败回退，避免拖垮整个 serverless 函数（最长 60s）
+      signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return []
     const j: any = await res.json()
@@ -56,7 +58,7 @@ async function pickAcademicTopic(hotTopics: string[], dateKey: string): Promise<
   }
   const prompt = `今天是 ${dateKey}，以下是知乎今日热榜话题：\n${hotTopics.slice(0, 15).map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\n请从中选择一个最具学术探讨价值的话题，或基于其中一个话题改写成更适合学术讨论的议题（30字以内）。学术酒吧的议题应该能引发多角度的知识性讨论，而不仅仅是情绪宣泄。\n\n只输出议题文本，不要任何前缀或解释。`
   try {
-    const result = await chatCompletion([{ role: 'user', content: prompt }], { temperature: 0.7 })
+    const result = await chatCompletion([{ role: 'user', content: prompt }], { temperature: 0.7, timeoutMs: 15_000, maxRetries: 1 })
     return (result.content || '').trim().replace(/^["「【]|["」】]$/g, '').slice(0, 80) ||
       FALLBACK_TOPICS[Math.floor(Math.random() * FALLBACK_TOPICS.length)]
   } catch {
