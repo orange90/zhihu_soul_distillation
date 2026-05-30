@@ -114,15 +114,20 @@ async function fillBarWithBots(supabase: any, topicId: string): Promise<void> {
 
   for (const seat of freeSeats) {
     const bot = makeBarBot()
-    // 并发补位可能撞唯一约束，忽略单条失败即可
-    await supabase.from('bar_sessions').insert({
-      topic_id: topicId,
-      user_id: bot.user_id,
-      user_name: bot.user_name,
-      user_avatar: bot.user_avatar,
-      table_num: seat.table_num,
-      seat_num: seat.seat_num,
-    }).catch(() => {})
+    // 并发补位可能撞唯一约束，忽略单条失败即可。
+    // 注意：Supabase 查询构造器是 thenable，但没有 .catch 方法，必须用 try/catch。
+    try {
+      await supabase.from('bar_sessions').insert({
+        topic_id: topicId,
+        user_id: bot.user_id,
+        user_name: bot.user_name,
+        user_avatar: bot.user_avatar,
+        table_num: seat.table_num,
+        seat_num: seat.seat_num,
+      })
+    } catch {
+      // ignore single insert failure (e.g. unique constraint under concurrency)
+    }
   }
 }
 
