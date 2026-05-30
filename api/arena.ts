@@ -653,6 +653,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return json(res, 200, { ok: true, status: done?.status, winner: done?.winner ?? null })
       }
 
+      if (body.action === 'test_fill') {
+        // Dev/test: 填充所有今日 open/debating 辩题的路人，绕过 8pm 时间检查
+        const { data: todayTopics } = await supabase
+          .from('arena_topics')
+          .select('id, status')
+          .eq('week_key', dayKey)
+
+        const filled: string[] = []
+        for (const t of (todayTopics || [])) {
+          if (t.status === 'completed') continue
+          await fillTopicWithBots(supabase, t.id)
+          await supabase.from('arena_topics')
+            .update({ status: 'debating' })
+            .eq('id', t.id)
+            .neq('status', 'completed')
+          filled.push(t.id)
+        }
+        return json(res, 200, {
+          ok: true,
+          filled,
+          message: `已填充并启动 ${filled.length} 场辩论，刷新页面即可看到进度`
+        })
+      }
+
       return badRequest(res, 'unknown action')
     }
 
