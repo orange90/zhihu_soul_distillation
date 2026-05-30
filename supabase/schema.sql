@@ -102,6 +102,18 @@ create table if not exists arena_topics (
 );
 create index if not exists idx_arena_week on arena_topics (week_key);
 
+-- 同一天同一类别只允许一条议题：防止并发请求在 LLM 出题期间重复插入（议题卡片重复）。
+-- 加约束前先清掉历史重复行（保留最早创建的那条）。
+delete from arena_topics a
+  using arena_topics b
+  where a.ctid < b.ctid
+    and a.week_key = b.week_key
+    and a.category = b.category;
+do $$ begin
+  alter table arena_topics add constraint arena_topics_week_category_key unique (week_key, category);
+exception when duplicate_object then null;
+end $$;
+
 create table if not exists arena_participants (
   id            uuid default gen_random_uuid() primary key,
   topic_id      uuid not null references arena_topics(id) on delete cascade,

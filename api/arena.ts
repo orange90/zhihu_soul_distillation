@@ -67,81 +67,97 @@ async function fetchZhihuHotList(hours = 24): Promise<string[]> {
   }
 }
 
-async function ensureDailyTopics(supabase: any, dayKey: string) {
-  const { data: existing } = await supabase
-    .from('arena_topics')
-    .select('category')
-    .eq('week_key', dayKey)
-  const existingCats = new Set((existing || []).map((t: any) => t.category))
-  const missing = CATEGORIES.filter(c => !existingCats.has(c))
-  if (missing.length === 0) return
+type GeneratedTopic = { title: string; affirmative_view: string; negative_view: string }
 
-  // Try to get hot list topics to inspire debate topics
-  const hotTopics = await fetchZhihuHotList(24)
-  const hotContext = hotTopics.length > 0
-    ? `\n\n参考今日知乎热榜话题（从中汲取灵感出辩题，要有正反方对立）：\n${hotTopics.slice(0, 10).map((t, i) => `${i + 1}. ${t}`).join('\n')}`
-    : ''
-
-  const prompt = `你是一个辩论赛题目策划人。今天是 ${dayKey}，请为以下类别各生成一个辩论题目。
+// 为「单个类别」用 LLM 出一道辩题。每次只出一题，prompt 小、调用快（数秒），
+// 比一次性出 4 题的大 JSON 更稳，不会触顶函数时长导致整体失败。
+async function generateTopicForCategory(
+  category: string,
+  dayKey: string,
+  hotContext: string
+): Promise<GeneratedTopic | null> {
+  const prompt = `你是一个辩论赛题目策划人。今天是 ${dayKey}，请为「${category}」类别生成一道辩论题目。
 要求：
 - 题目必须适合"正方 vs 反方"的二元对立辩论（不能是开放式问题）
 - 使用"应不应该"/"是不是"/"会不会"/"X 比 Y 更…"等可以明确站队的句式
-- 具有争议性和时代感，适合 2026 年当下语境
-- 每个类别独立成题${hotContext}
+- 具有争议性和时代感，适合 2026 年当下语境，且贴合「${category}」领域${hotContext}
 
-类别：${missing.join('、')}
+只输出 JSON 对象（不要数组、不要解释）：
+{
+  "title": "辩论题目（20字以内）",
+  "affirmative_view": "正方立场（15字以内）",
+  "negative_view": "反方立场（15字以内）"
+}`
 
-只输出 JSON 数组：
-[
-  {
-    "category": "类别名",
-    "title": "辩论题目（20字以内）",
-    "affirmative_view": "正方立场（15字以内）",
-    "negative_view": "反方立场（15字以内）"
+  // 小 prompt 单题生成数秒即可返回。15s 超时 + 2 次重试，
+  // 即使全部触发（并行下 wall-time≈单题最坏 ~48s）仍稳在 60s 函数上限内。
+  const result = await chatCompletion(
+    [{ role: 'user', content: prompt }],
+    { temperature: 0.9, timeoutMs: 15_000, maxRetries: 2 }
+  )
+  const t = extractFirstJson<GeneratedTopic>(result.content)
+  if (!t || !t.title || !t.affirmative_view || !t.negative_view) return null
+  return {
+    title: String(t.title).slice(0, 40),
+    affirmative_view: String(t.affirmative_view).slice(0, 40),
+    negative_view: String(t.negative_view).slice(0, 40),
   }
-]`
+}
 
-  try {
-    const result = await chatCompletion(
-      [{ role: 'user', content: prompt }],
-      // 收紧超时：30s×(1+重试) 最坏接近 60s 函数上限会被 Vercel 杀掉→ /api/arena 非 200。
-      // 限到 18s 且仅重试 1 次，挂掉时快速落入下方 catch 用内置 fallback 题目兜底。
-      { temperature: 0.85, timeoutMs: 18_000, maxRetries: 1 }
-    )
-    const topics = extractFirstJson<Array<{
-      category: string; title: string; affirmative_view: string; negative_view: string
-    }>>(result.content) || []
+async function ensureDailyTopics(supabase: any, dayKey: string) {
+  // 每日刷新：清空非今日的旧议题（含昨天的），辩论场只保留当天议题
+  await supabase.from('arena_topics').delete().neq('week_key', dayKey)
 
-    const rows = topics.map(t => ({
-      category: t.category,
-      title: t.title,
-      affirmative_view: t.affirmative_view,
-      negative_view: t.negative_view,
+  // 读取今日议题并按类别去重（清理历史并发产生的重复，保留最早一条）
+  const { data: existing } = await supabase
+    .from('arena_topics')
+    .select('id, category, created_at')
+    .eq('week_key', dayKey)
+    .order('created_at', { ascending: true })
+
+  const existingCats = new Set<string>()
+  const dupIds: string[] = []
+  for (const t of (existing || [])) {
+    if (existingCats.has(t.category)) dupIds.push(t.id)
+    else existingCats.add(t.category)
+  }
+  if (dupIds.length > 0) {
+    await supabase.from('arena_topics').delete().in('id', dupIds)
+  }
+
+  const missing = CATEGORIES.filter(c => !existingCats.has(c))
+  if (missing.length === 0) return
+
+  // 取知乎热榜给 LLM 出题做灵感（拿不到就算了，不影响出题）
+  const hotTopics = await fetchZhihuHotList(24)
+  const hotContext = hotTopics.length > 0
+    ? `\n- 可参考今日知乎热榜（从中汲取灵感，但要转写成有正反方对立的辩题）：\n${hotTopics.slice(0, 10).map((t, i) => `  ${i + 1}. ${t}`).join('\n')}`
+    : ''
+
+  // 每个缺失类别各发一次小调用，并行出题；某个类别失败就跳过，留待下次请求重试（不用兜底题库）
+  const results = await Promise.allSettled(
+    missing.map(async (c) => {
+      const t = await generateTopicForCategory(c, dayKey, hotContext)
+      return { category: c, topic: t }
+    })
+  )
+
+  const rows = results
+    .filter((r): r is PromiseFulfilledResult<{ category: string; topic: GeneratedTopic | null }> =>
+      r.status === 'fulfilled' && r.value.topic !== null)
+    .map(r => ({
+      category: r.value.category,
+      title: r.value.topic!.title,
+      affirmative_view: r.value.topic!.affirmative_view,
+      negative_view: r.value.topic!.negative_view,
       week_key: dayKey,
       status: 'open'
     }))
 
-    if (rows.length > 0) {
-      await supabase.from('arena_topics').insert(rows)
-    }
-  } catch (e) {
-    const fallbacks: Record<string, { title: string; affirmative_view: string; negative_view: string }> = {
-      '人文': { title: 'AI 创作应被认定为真正的艺术吗', affirmative_view: '应该，AI 艺术代表创意新边界', negative_view: '不应该，真正艺术源于人类情感' },
-      '科技': { title: '大模型的涌现能力是真实质变还是幻觉', affirmative_view: '是真实质变，代表智能新层级', negative_view: '是统计幻觉，本质仍是模式匹配' },
-      '教育': { title: '全面推广 AI 辅助学习会让学生更聪明吗', affirmative_view: '会，AI 释放认知带宽提升思维', negative_view: '不会，反而会侵蚀独立思考能力' },
-      '生物科学': { title: '基因编辑应该被允许用于人类胚胎增强吗', affirmative_view: '应该，是消除遗传疾病的进步', negative_view: '不应该，带来不可控伦理风险' }
-    }
-    const fallbackRows = missing.filter(c => fallbacks[c]).map(c => ({
-      category: c,
-      title: fallbacks[c].title,
-      affirmative_view: fallbacks[c].affirmative_view,
-      negative_view: fallbacks[c].negative_view,
-      week_key: dayKey,
-      status: 'open'
-    }))
-    if (fallbackRows.length > 0) {
-      await supabase.from('arena_topics').insert(fallbackRows)
-    }
+  if (rows.length > 0) {
+    // onConflict 去重：并发请求同时出题时，靠 (week_key, category) 唯一约束兜底，不产生重复卡片
+    await supabase.from('arena_topics')
+      .upsert(rows, { onConflict: 'week_key,category', ignoreDuplicates: true })
   }
 }
 
