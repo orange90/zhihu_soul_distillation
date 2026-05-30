@@ -42,6 +42,11 @@ jobs:
             exit 1
           fi
 
+          # 同时触发学术酒吧「今日议题」发布：10 点后访问 /api/bar 即会创建当天议题，
+          # 确保每天上午 10 点都有议题，而不是等到晚上冷启动或访客到来才懒加载。
+          echo "Publishing today's academic bar topic..."
+          curl -sL -o /dev/null -w "bar publish: %{http_code}\n" "${PRODUCTION_URL}/api/bar"
+
           python3 scripts/update-arena-topics.py
 
       - name: Commit and push updated topics
