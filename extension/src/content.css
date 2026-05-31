@@ -89,6 +89,11 @@
 }
 .zsd-checkbox.zsd-checked .zsd-checkbox-tick { opacity: 1; }
 
+/* 文章页：按钮挂在标题区域，单独给点上下间距 */
+.zsd-checkbox-article {
+  margin: 12px 8px 12px 0;
+}
+
 .zsd-toast {
   position: fixed;
   bottom: 100px;

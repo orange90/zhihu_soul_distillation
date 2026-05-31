@@ -176,3 +176,46 @@ function parseVote(s: string): number {
   else if (unit === 'k') n *= 1000
   return Math.round(n)
 }
+
+// 从专栏文章详情页（zhuanlan.zhihu.com/p/<id> 或 www.zhihu.com/p/<id>）的 DOM 提取文章。
+// 走 DOM 而不是 v4 API：文章页在 zhuanlan 子域，跨子域 fetch www.zhihu.com 带 Cookie 会被 CORS 拦，
+// 而专栏正文本身就完整渲染在 DOM 里，够用。
+export function parseArticleElement(): CollectedAnswer | null {
+  const m = location.pathname.match(/^\/p\/(\d+)/)
+  if (!m) return null
+  const articleId = m[1]
+  const titleEl = document.querySelector(
+    '.Post-Title, header h1, h1.Post-Title'
+  ) as HTMLElement | null
+  const contentEl = document.querySelector(
+    '.Post-RichText, .Post-content .RichText, article .RichText, .RichText'
+  ) as HTMLElement | null
+  if (!contentEl) return null
+  const content = stripHtml(contentEl.innerHTML || '')
+  if (!content) return null
+  const voteEl = document.querySelector(
+    '.Post-content .VoteButton--up, .VoteButton--up, .VoteButton'
+  ) as HTMLElement | null
+  return {
+    answer_id: articleId,
+    author_id: '',
+    title: (titleEl?.textContent || '').trim(),
+    content,
+    excerpt: content.slice(0, 300),
+    voteup_count: parseVote((voteEl?.textContent || '').trim()),
+    url: `https://zhuanlan.zhihu.com/p/${articleId}`,
+    kind: 'article'
+  }
+}
+
+// 取专栏文章的作者 url_token，用于"仅本人内容"过滤。
+// 作用域限定在文章头部，避免命中顶栏「我的主页」头像里指向自己的 /people 链接。
+export function articleAuthorToken(): string | null {
+  const scope =
+    document.querySelector('.Post-Header, .Post-Author, .PostIndex-author, .Post-Main header') ||
+    document
+  const a = scope.querySelector('.AuthorInfo a[href*="/people/"]') as HTMLAnchorElement | null
+  if (!a) return null
+  const m = (a.getAttribute('href') || '').match(/\/people\/([^/?#]+)/)
+  return m ? m[1] : null
+}
