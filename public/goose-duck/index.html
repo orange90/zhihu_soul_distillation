@@ -175,8 +175,8 @@ const IMG = {
   duckBack:  "duck-back.svg",                   // 鸭·轮廓剪影（自绘，主体黑/背景白，契合「凭轮廓判断」）
   gooseBack: "goose-back.svg",                  // 鹅·轮廓剪影（自绘，主体黑/背景白）
   roastGoose: fp("Cantonese roasted goose.jpg"),// 港式烧鹅（菜品）
-  // 陷阱题四宫格：4 张各不相同的烤腿示意图（自绘），避免四格雷同
-  trapLegs: ["leg1.svg", "leg2.svg", "leg3.svg", "leg4.svg"],
+  // 陷阱题四宫格：优先用真实烤鸭腿照片 leg1.jpg~leg4.jpg（放到 public/goose-duck/ 即生效），
+  // 缺照片时自动回退到自绘示意图 leg1.svg~leg4.svg（见 legCell）。
 };
 
 /* ---------- 二维码 ----------
@@ -228,7 +228,7 @@ const QUESTIONS = [
     why:"这是港式<b>烧鹅</b>——块头大、皮色深红油亮。鹅肉无误。" },
 
   // —— 第 10 题：陷阱题（不告诉用户） ——
-  { type:"trap", tag:"最后一题 · 现场鉴定", imgs:IMG.trapLegs, emoji:"🍗", credit:"示意图",
+  { type:"trap", tag:"最后一题 · 现场鉴定", emoji:"🍗", credit:"",
     q:"摊位上还剩这几只烤腿，仔细看——这里一共有几个「鹅腿」？",
     options:["0 个","1 个","2 个","3 个","4 个"], answer:0,
     why:"" }, // 陷阱：四只全是鸭腿，鹅腿数量为 0。揭晓文案在结果页统一处理。
@@ -296,6 +296,28 @@ function imgWithFallback(src, emoji, cls) {
     ph.textContent = emoji;
     im.replaceWith(ph);
   };
+  wrap.appendChild(im);
+  return wrap;
+}
+
+/* 陷阱题单格：真实烤鸭腿照片 legN.jpg → 自绘示意图 legN.svg → emoji，三级回退 */
+function legCell(n) {
+  const wrap = document.createElement("div");
+  wrap.className = "leg";
+  const im = document.createElement("img");
+  im.alt = "";
+  im.referrerPolicy = "no-referrer";
+  const real = "leg" + n + ".jpg";   // 真实照片：放到 public/goose-duck/ 即自动启用
+  const draw = "leg" + n + ".svg";   // 缺真实照片时回退到自绘示意图
+  im.onerror = () => {
+    if (im.getAttribute("src") === real) { im.src = draw; }   // 真实图缺失 → 自绘图
+    else {
+      const ph = document.createElement("div");
+      ph.className = "emoji-ph"; ph.textContent = "🍗";
+      im.replaceWith(ph);
+    }
+  };
+  im.src = real;
   wrap.appendChild(im);
   return wrap;
 }
@@ -372,8 +394,7 @@ function renderQuestion() {
     addCredit();
   } else if (q.type === "trap") {
     const grid = document.createElement("div"); grid.className = "leg-grid";
-    const legs = q.imgs || [];
-    for (let i = 0; i < 4; i++) grid.appendChild(imgWithFallback(legs[i], "🍗", "leg"));
+    for (let i = 1; i <= 4; i++) grid.appendChild(legCell(i));
     media.appendChild(grid);
     addCredit();
   }
