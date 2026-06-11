@@ -660,7 +660,8 @@ function applyUser(user) {
 let _pollTimer = null, _popup = null;
 function startLogin() {
   if (state.user) { toast("已登录：" + state.user.name); return; }
-  _popup = window.open("/api/auth/login", "zhihu_login", "width=480,height=720");
+  // next=/goose-duck/ 让登录完成后跳回游戏（而非蒸馏馆 /select）
+  _popup = window.open("/api/auth/login?next=" + encodeURIComponent("/goose-duck/"), "zhihu_login", "width=480,height=720");
   toast("请在弹窗中完成知乎登录");
   let tries = 0;
   clearInterval(_pollTimer);
