@@ -52,7 +52,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       refresh_token: token.refresh_token,
       expires_at: token.expires_in ? Date.now() + token.expires_in * 1000 : undefined
     })
-    res.writeHead(302, { Location: '/select' })
+
+    // 跳回登录发起页（login 时写入的 zsd_oauth_next）；缺省回蒸馏馆 /select。
+    // 仅接受同站相对路径，防止 open redirect。
+    const rawNext = cookies.zsd_oauth_next || ''
+    const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/select'
+    // 清掉一次性的 next cookie，且不覆盖 writeSession 写入的 session cookie
+    const isProd = process.env.VERCEL_ENV === 'production'
+    const existing = res.getHeader('Set-Cookie')
+    const prev = Array.isArray(existing) ? existing : existing ? [String(existing)] : []
+    res.setHeader('Set-Cookie', [
+      ...prev,
+      `zsd_oauth_next=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? '; Secure' : ''}`
+    ])
+    res.writeHead(302, { Location: next })
     res.end()
   } catch (err) {
     console.error('[oauth callback]', err)
