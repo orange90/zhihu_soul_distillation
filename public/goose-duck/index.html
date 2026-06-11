@@ -172,23 +172,18 @@
    鸭骗战争 —— 独立单页小游戏
    - 题库 / 成就 / 计分 / 分享卡片(canvas) 全部内联，自包含
    - 可选复用本项目已部署的知乎 OAuth：/api/auth/me、/api/auth/login
-   - 图片外链 Wikimedia Commons（Special:FilePath 稳定直链），失败回退 emoji
+   - 图片均为本地图（public/goose-duck/ 下），加载失败回退 emoji
    ============================================================ */
 
-/* ---------- 图片来源（Wikimedia Commons，CC 许可，允许外链） ----------
-   用 Special:FilePath 重定向，无需计算文件 hash，最稳。
-   如需替换为更合适的图，只改下面 6 个文件名即可。 */
-const fp = (name, w = 760) =>
-  "https://commons.wikimedia.org/wiki/Special:FilePath/" + encodeURIComponent(name) + "?width=" + w;
-
+/* ---------- 图片来源（本地图，放在 public/goose-duck/ 下） ----------
+   如需替换为更合适的图，覆盖对应文件或改下面文件名即可。 */
 const IMG = {
-  duckSide:  fp("Male mallard duck 2.jpg"),     // 鸭·侧面（绿头鸭，特征明显）
-  gooseSide: fp("Domestic Goose.jpg"),          // 鹅·侧面（家鹅，长脖子）
+  duckSide:  "duck-side.jpg",                   // 鸭·侧面（绿头鸭，本地图）
+  gooseSide: "goose-side.jpg",                  // 鹅·侧面（家鹅，本地图）
   duckBack:  "duck-back.svg",                   // 鸭·轮廓剪影（自绘，主体黑/背景白，契合「凭轮廓判断」）
   gooseBack: "goose-back.svg",                  // 鹅·轮廓剪影（自绘，主体黑/背景白）
-  roastGoose: fp("Cantonese roasted goose.jpg"),// 港式烧鹅（菜品）
-  // 陷阱题四宫格：优先用真实烤鸭腿照片 leg1.jpg~leg4.jpg（放到 public/goose-duck/ 即生效），
-  // 缺照片时自动回退到自绘示意图 leg1.svg~leg4.svg（见 legCell）。
+  roastGoose: "roast-goose.jpg",               // 烤味（菜品，本地图）
+  // 陷阱题四宫格：真实烤鸭腿照片 leg1.jpg~leg4.jpg（放到 public/goose-duck/ 即生效），缺图回退 emoji。
 };
 
 /* ---------- 二维码 ----------
@@ -312,24 +307,19 @@ function imgWithFallback(src, emoji, cls) {
   return wrap;
 }
 
-/* 陷阱题单格：真实烤鸭腿照片 legN.jpg → 自绘示意图 legN.svg → emoji，三级回退 */
+/* 陷阱题单格：真实烤鸭腿照片 legN.jpg → emoji，不再回退自绘 svg 示意图 */
 function legCell(n) {
   const wrap = document.createElement("div");
   wrap.className = "leg";
   const im = document.createElement("img");
   im.alt = "";
   im.referrerPolicy = "no-referrer";
-  const real = "leg" + n + ".jpg";   // 真实照片：放到 public/goose-duck/ 即自动启用
-  const draw = "leg" + n + ".svg";   // 缺真实照片时回退到自绘示意图
   im.onerror = () => {
-    if (im.getAttribute("src") === real) { im.src = draw; }   // 真实图缺失 → 自绘图
-    else {
-      const ph = document.createElement("div");
-      ph.className = "emoji-ph"; ph.textContent = "🍗";
-      im.replaceWith(ph);
-    }
+    const ph = document.createElement("div");
+    ph.className = "emoji-ph"; ph.textContent = "🍗";
+    im.replaceWith(ph);
   };
-  im.src = real;
+  im.src = "leg" + n + ".jpg";   // 真实照片：放到 public/goose-duck/ 即自动启用
   wrap.appendChild(im);
   return wrap;
 }
