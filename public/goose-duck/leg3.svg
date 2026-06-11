@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="烤腿">
+  <rect width="200" height="200" fill="#ffffff"/>
+  <g transform="rotate(14 100 100)">
+    <path d="M152,58 L94,122" stroke="#e9d6b8" stroke-width="16" stroke-linecap="round" fill="none"/>
+    <circle cx="152" cy="53" r="12" fill="#f0e2c8"/>
+    <circle cx="164" cy="63" r="11" fill="#f0e2c8"/>
+    <ellipse cx="86" cy="132" rx="47" ry="54" transform="rotate(38 86 132)" fill="#5c3115"/>
+    <ellipse cx="74" cy="121" rx="14" ry="18" transform="rotate(38 74 121)" fill="#7c461e"/>
+    <circle cx="98" cy="151" r="4.5" fill="#341d0c"/>
+    <circle cx="66" cy="144" r="4" fill="#341d0c"/>
+    <circle cx="84" cy="166" r="3" fill="#341d0c"/>
+  </g>
+</svg>

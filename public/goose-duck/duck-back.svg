@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" width="480" height="300" role="img" aria-label="鸭的轮廓剪影">
+  <rect width="480" height="300" fill="#ffffff"/>
+  <g fill="#111111" stroke="#111111" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 上翘的尾巴 -->
+    <path d="M118,176 L94,136 L134,184 Z"/>
+    <!-- 身体（矮胖紧凑） -->
+    <ellipse cx="216" cy="192" rx="116" ry="64"/>
+    <!-- 短脖子 -->
+    <path d="M300,162 C308,142 314,132 322,122" fill="none" stroke-width="42"/>
+    <!-- 头 -->
+    <ellipse cx="332" cy="116" rx="27" ry="23"/>
+    <!-- 扁长的喙 -->
+    <path d="M356,108 L402,118 L356,130 Z"/>
+    <!-- 腿 -->
+    <rect x="196" y="250" width="11" height="26" rx="3"/>
+    <rect x="230" y="250" width="11" height="26" rx="3"/>
+    <!-- 脚蹼 -->
+    <path d="M184,275 L214,275 L201,285 Z"/>
+    <path d="M218,275 L248,275 L235,285 Z"/>
+  </g>
+</svg>

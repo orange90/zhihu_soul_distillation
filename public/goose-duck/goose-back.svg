@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" width="480" height="300" role="img" aria-label="鹅的轮廓剪影">
+  <rect width="480" height="300" fill="#ffffff"/>
+  <g fill="#111111" stroke="#111111" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 尾巴 -->
+    <path d="M120,165 L70,148 L118,202 Z"/>
+    <!-- 身体（大而饱满） -->
+    <ellipse cx="208" cy="178" rx="122" ry="73"/>
+    <!-- 长脖子 -->
+    <path d="M286,140 C302,92 308,70 332,54" fill="none" stroke-width="36"/>
+    <!-- 头 -->
+    <ellipse cx="338" cy="50" rx="25" ry="23"/>
+    <!-- 额部肉瘤（鹅特征） -->
+    <circle cx="318" cy="40" r="9"/>
+    <!-- 喙 -->
+    <path d="M357,42 L395,50 L357,61 Z"/>
+    <!-- 腿 -->
+    <rect x="178" y="244" width="11" height="30" rx="3"/>
+    <rect x="220" y="244" width="11" height="30" rx="3"/>
+    <!-- 脚蹼 -->
+    <path d="M166,273 L196,273 L183,284 Z"/>
+    <path d="M208,273 L238,273 L225,284 Z"/>
+  </g>
+</svg>
