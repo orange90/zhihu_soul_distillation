@@ -624,12 +624,14 @@ function drawCard(score, a, withAvatar = true) {
   ctx.strokeStyle = "#e7d8b8"; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.stroke();
 
-  // 昵称
-  ctx.textAlign = "center";
+  // 昵称：放在头像右侧，垂直居中对齐
+  ctx.textAlign = "left";
   ctx.fillStyle = "#4a3a26";
-  setFont(ctx, 600, 38);
+  setFont(ctx, 600, 40);
   const nm = (state.user && state.user.name) ? state.user.name : "匿名鉴定师";
-  ctx.fillText(clip(ctx, nm, 256), avX, avY + avR + 60);
+  const nameX = avX + avR + 30;
+  const qLeft = W - 104 - 212;                  // 二维码左边界，昵称不可越过
+  ctx.fillText(clip(ctx, nm, qLeft - nameX - 36), nameX, avY + 14);
 
   // 右：二维码（自动读取 /goose-duck/qrcode.png；缺失则显示留白框）
   const qs = 212, qx = W - 104 - qs, qy = footY + 30;
@@ -655,7 +657,7 @@ function drawCard(score, a, withAvatar = true) {
   // 底部 slogan
   ctx.fillStyle = "#a8916a";
   setFont(ctx, 500, 28); setLS(ctx, 1);
-  ctx.fillText("扫码也来辨鹅鸭 · 别再被阿姨骗啦", cx, H - 54);
+  ctx.fillText("扫码也来辨鹅鸭 · 别被骗", cx, H - 54);
   setLS(ctx, 0);
 
   _cardReady = true;
@@ -685,7 +687,7 @@ function layoutBody(ctx, W, startY, a, score, draw) {
   setFont(ctx, 500, 32); setLS(ctx, 2);
   if (draw) { ctx.fillStyle = "#a8916a"; ctx.fillText("本次鉴定得分", cx, y); }
   setLS(ctx, 0);
-  y += 126;
+  y += 160;
 
   // 4) 大分数（半粗 + 收紧字距，最具份量）
   setFont(ctx, 700, 176); setLS(ctx, -4);
