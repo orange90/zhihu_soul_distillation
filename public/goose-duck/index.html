@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>鹅鸭鉴定师 · 你能吃出鹅腿还是鸭腿吗？</title>
+<title>鸭骗战争 · 你能吃出鹅腿还是鸭腿吗？</title>
 <meta name="description" content="结合「清华鹅腿阿姨」热点，10 道题测测你的鹅鸭鉴定段位。三年了，你是一点没吃出来啊？" />
 <style>
   :root{
@@ -139,7 +139,7 @@
 <body>
 <div id="phone">
   <header>
-    <div class="logo"><span class="e">🦢🦆</span><span>鹅鸭鉴定师</span></div>
+    <div class="logo"><span class="e">🦢🦆</span><span>鸭骗战争</span></div>
     <div class="login-chip" id="loginChip" title="点击登录知乎，把头像昵称放进成就卡片">
       <img id="chipAvatar" src="" alt="" style="display:none" />
       <span class="nm" id="chipName">知乎登录</span>
@@ -157,7 +157,7 @@
 "use strict";
 
 /* ============================================================
-   鹅鸭鉴定师 —— 独立单页小游戏
+   鸭骗战争 —— 独立单页小游戏
    - 题库 / 成就 / 计分 / 分享卡片(canvas) 全部内联，自包含
    - 可选复用本项目已部署的知乎 OAuth：/api/auth/me、/api/auth/login
    - 图片外链 Wikimedia Commons（Special:FilePath 稳定直链），失败回退 emoji
@@ -172,10 +172,11 @@ const fp = (name, w = 760) =>
 const IMG = {
   duckSide:  fp("Male mallard duck 2.jpg"),     // 鸭·侧面（绿头鸭，特征明显）
   gooseSide: fp("Domestic Goose.jpg"),          // 鹅·侧面（家鹅，长脖子）
-  duckBack:  fp("Mallard Duck Land.jpg"),       // 鸭·背影候选（如需更标准背影可替换）
-  gooseBack: fp("Greylag Goose.JPG"),           // 鹅·背影候选（如需更标准背影可替换）
+  duckBack:  "duck-back.svg",                   // 鸭·轮廓剪影（自绘，主体黑/背景白，契合「凭轮廓判断」）
+  gooseBack: "goose-back.svg",                  // 鹅·轮廓剪影（自绘，主体黑/背景白）
   roastGoose: fp("Cantonese roasted goose.jpg"),// 港式烧鹅（菜品）
-  roastDuck:  fp("Roasted Beijing Duck sliced.jpg"), // 烤鸭（陷阱题四宫格用，回退🍗）
+  // 陷阱题四宫格：4 张各不相同的烤腿示意图（自绘），避免四格雷同
+  trapLegs: ["leg1.svg", "leg2.svg", "leg3.svg", "leg4.svg"],
 };
 
 /* ---------- 二维码 ----------
@@ -214,12 +215,12 @@ const QUESTIONS = [
   { type:"animal", tag:"看图鉴定 · 动物", img:IMG.gooseSide, emoji:"🦢",
     q:"这一只呢？是鹅还是鸭？", options:["鹅","鸭"], answer:0,
     why:"长脖子、体型大、挺拔——这是<b>鹅</b>。" },
-  { type:"animal", tag:"看图鉴定 · 背影", img:IMG.duckBack, emoji:"🦆",
-    q:"只给你一个背影，凭轮廓判断：鹅还是鸭？", options:["鹅","鸭"], answer:1,
-    why:"矮胖紧凑的小背影，是<b>鸭</b>。背影最容易看走眼，阿姨就靠这个。" },
-  { type:"animal", tag:"看图鉴定 · 背影", img:IMG.gooseBack, emoji:"🦢",
-    q:"再来一个背影，鹅还是鸭？", options:["鹅","鸭"], answer:0,
-    why:"个头大、脖子长的背影，是<b>鹅</b>。" },
+  { type:"animal", tag:"看图鉴定 · 轮廓", img:IMG.duckBack, emoji:"🦆", credit:"轮廓示意图",
+    q:"只给你一个轮廓，凭外形判断：鹅还是鸭？", options:["鹅","鸭"], answer:1,
+    why:"矮胖紧凑、脖子短，是<b>鸭</b>。只看轮廓最容易看走眼，阿姨就靠这个。" },
+  { type:"animal", tag:"看图鉴定 · 轮廓", img:IMG.gooseBack, emoji:"🦢", credit:"轮廓示意图",
+    q:"再来一个轮廓，鹅还是鸭？", options:["鹅","鸭"], answer:0,
+    why:"个头大、脖子长、挺拔，是<b>鹅</b>。" },
 
   // —— 菜品分辨图 ——
   { type:"dish", tag:"看图鉴定 · 菜品", img:IMG.roastGoose, emoji:"🍖",
@@ -227,11 +228,31 @@ const QUESTIONS = [
     why:"这是港式<b>烧鹅</b>——块头大、皮色深红油亮。鹅肉无误。" },
 
   // —— 第 10 题：陷阱题（不告诉用户） ——
-  { type:"trap", tag:"最后一题 · 现场鉴定", img:IMG.roastDuck, emoji:"🍗",
+  { type:"trap", tag:"最后一题 · 现场鉴定", imgs:IMG.trapLegs, emoji:"🍗", credit:"示意图",
     q:"摊位上还剩这几只烤腿，仔细看——这里一共有几个「鹅腿」？",
     options:["0 个","1 个","2 个","3 个","4 个"], answer:0,
     why:"" }, // 陷阱：四只全是鸭腿，鹅腿数量为 0。揭晓文案在结果页统一处理。
 ];
+
+/* ---------- 选项乱序：避免正确答案总是 A（陷阱题数字选项保持 0..4 顺序） ---------- */
+function shuffleArr(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function buildQuiz() {
+  return QUESTIONS.map(q => {
+    if (q.type === "trap") return Object.assign({}, q);   // 数字选项需保持顺序
+    const order = shuffleArr(q.options.map((_, i) => i));
+    return Object.assign({}, q, {
+      options: order.map(i => q.options[i]),
+      answer: order.indexOf(q.answer),
+    });
+  });
+}
 
 /* ---------- 成就体系（0–10，逐字保留用户文案） ---------- */
 const ACHIEVEMENTS = [
@@ -255,6 +276,7 @@ const state = {
   answered: false,
   results: [],          // 每题是否答对
   user: null,           // { name, avatar_url }
+  quiz: [],             // 本局题目（选项已乱序）
 };
 
 const app = document.getElementById("app");
@@ -291,10 +313,11 @@ function toast(msg) {
    ============================================================ */
 function renderStart() {
   state.idx = 0; state.correct = 0; state.answered = false; state.results = [];
+  state.quiz = buildQuiz();   // 每局重新乱序选项
   app.innerHTML = `
     <div class="hero">
       <div class="big-emoji">🦢🍗🦆</div>
-      <h1>鹅鸭鉴定师</h1>
+      <h1>鸭骗战争</h1>
       <p class="sub">三年了，你是一点没吃出来啊？</p>
     </div>
     <div class="quote-card">
@@ -314,8 +337,8 @@ function renderStart() {
    ============================================================ */
 function renderQuestion() {
   state.answered = false;
-  const q = QUESTIONS[state.idx];
-  const total = QUESTIONS.length;
+  const q = state.quiz[state.idx];
+  const total = state.quiz.length;
   const pct = Math.round((state.idx) / total * 100);
 
   const el = document.createElement("div");
@@ -338,16 +361,21 @@ function renderQuestion() {
 
   // 媒体区
   const media = $("media");
+  const creditText = (q.credit !== undefined) ? q.credit : "图片来源：Wikimedia Commons (CC)";
+  const addCredit = () => {
+    if (!creditText) return;
+    const c = document.createElement("div"); c.className = "qcredit"; c.textContent = creditText;
+    media.appendChild(c);
+  };
   if (q.type === "animal" || q.type === "dish") {
     media.appendChild(imgWithFallback(q.img, q.emoji, "qimg"));
-    const c = document.createElement("div"); c.className = "qcredit"; c.textContent = "图片来源：Wikimedia Commons (CC)";
-    media.appendChild(c);
+    addCredit();
   } else if (q.type === "trap") {
     const grid = document.createElement("div"); grid.className = "leg-grid";
-    for (let i = 0; i < 4; i++) grid.appendChild(imgWithFallback(q.img, "🍗", "leg"));
+    const legs = q.imgs || [];
+    for (let i = 0; i < 4; i++) grid.appendChild(imgWithFallback(legs[i], "🍗", "leg"));
     media.appendChild(grid);
-    const c = document.createElement("div"); c.className = "qcredit"; c.textContent = "图片来源：Wikimedia Commons (CC)";
-    media.appendChild(c);
+    addCredit();
   }
 
   // 选项
@@ -371,7 +399,7 @@ function renderQuestion() {
 function choose(i, btn) {
   if (state.answered) return;
   state.answered = true;
-  const q = QUESTIONS[state.idx];
+  const q = state.quiz[state.idx];
   const correct = i === q.answer;
   state.results[state.idx] = correct;
   if (correct) state.correct++;
@@ -434,7 +462,7 @@ function renderResult() {
     </div>
 
     <div class="result-actions">
-      <img id="cardImg" alt="鹅鸭鉴定师 · 成就分享卡" />
+      <img id="cardImg" alt="鸭骗战争 · 成就分享卡" />
       <p class="card-hint" id="cardHint">👆 长按上方图片，即可保存到相册或转发好友</p>
       <canvas id="cardCanvas" class="hidden"></canvas>
       <button class="btn btn-primary" id="dlBtn" style="width:100%">⬇️ 保存图片</button>
@@ -554,7 +582,7 @@ function layoutBody(ctx, W, startY, a, score, draw) {
 
   // 顶部标题
   ctx.font = "800 50px 'PingFang SC','Microsoft YaHei',sans-serif";
-  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("《鹅鸭鉴定师》成就榜", cx, y); }
+  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("《鸭骗战争》成就榜", cx, y); }
   y += 110;
 
   // 装饰 emoji
@@ -630,7 +658,7 @@ function downloadCard() {
   try {
     const a = document.createElement("a");
     a.href = img.src;
-    a.download = "鹅鸭鉴定师-成就卡.png";
+    a.download = "鸭骗战争-成就卡.png";
     a.click();
     toast("若未自动下载，请长按上方图片保存到相册");
   } catch (e) {
