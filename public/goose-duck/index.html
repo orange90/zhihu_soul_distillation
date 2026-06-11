@@ -177,6 +177,15 @@ const IMG = {
   roastDuck:  fp("Roasted Beijing Duck sliced.jpg"), // 烤鸭（陷阱题四宫格用，回退🍗）
 };
 
+/* ---------- 二维码 ----------
+   把你的二维码图片放到  public/goose-duck/qrcode.png  即自动显示在成就卡上；
+   没有该文件时，卡片显示「二维码 / 敬请期待」留白框。换图无需改代码。 */
+const qrImg = new Image();
+let qrReady = false;
+qrImg.onload = () => { qrReady = !!qrImg.naturalWidth; if (typeof _cardReady !== "undefined" && _cardReady) drawCard(state.correct, ACHIEVEMENTS[state.correct]); };
+qrImg.onerror = () => { qrReady = false; };
+qrImg.src = "qrcode.png"; // 相对路径 → /goose-duck/qrcode.png（同源，不污染画布）
+
 /* ---------- 题库（共 10 题） ---------- */
 const QUESTIONS = [
   // —— 4 道文字题 ——
@@ -531,17 +540,26 @@ function drawCard(score, a, withAvatar = true) {
   const nm = (state.user && state.user.name) ? state.user.name : "匿名鉴定师";
   ctx.fillText(clip(ctx, nm, 240), avX, avY + avR + 60);
 
-  // 右：二维码留白方框（待补全）
+  // 右：二维码（自动读取 /goose-duck/qrcode.png；缺失则显示留白框）
   const qs = 200, qx = W - 110 - qs, qy = footY + 30;
   ctx.fillStyle = "#ffffff";
   roundRect(ctx, qx, qy, qs, qs, 18); ctx.fill();
-  ctx.strokeStyle = "#c8861a"; ctx.setLineDash([12, 10]); ctx.lineWidth = 4;
-  roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = "#b3a489";
-  ctx.font = "600 26px 'PingFang SC',sans-serif";
-  ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 6);
-  ctx.font = "500 20px 'PingFang SC',sans-serif";
-  ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 30);
+  if (qrReady && qrImg.naturalWidth) {
+    ctx.save();
+    roundRect(ctx, qx, qy, qs, qs, 18); ctx.clip();
+    ctx.drawImage(qrImg, qx, qy, qs, qs);
+    ctx.restore();
+    ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 4;
+    roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke();
+  } else {
+    ctx.strokeStyle = "#c8861a"; ctx.setLineDash([12, 10]); ctx.lineWidth = 4;
+    roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#b3a489";
+    ctx.font = "600 26px 'PingFang SC',sans-serif";
+    ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 6);
+    ctx.font = "500 20px 'PingFang SC',sans-serif";
+    ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 30);
+  }
 
   // 底部 slogan
   ctx.fillStyle = "#a96a0e";
