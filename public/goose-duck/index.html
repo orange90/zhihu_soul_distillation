@@ -86,9 +86,21 @@
 
   /* 陷阱题四宫格 */
   .leg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
-  .leg{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#f3ead8;box-shadow:0 4px 10px var(--shadow);}
+  .leg{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#f3ead8;box-shadow:0 4px 10px var(--shadow);}
   .leg img{width:100%;height:110px;object-fit:cover;display:block;}
   .leg .emoji-ph{height:110px;display:flex;align-items:center;justify-content:center;font-size:54px;}
+  /* 多选交互 */
+  .leg-grid.select .leg{cursor:pointer;transition:transform .12s ease, box-shadow .12s ease;}
+  .leg-grid.select .leg:active{transform:scale(.97);}
+  .leg.sel{outline:4px solid var(--gold-d);outline-offset:-4px;box-shadow:0 6px 16px rgba(200,134,26,.45);}
+  .leg.sel::after{content:"✓";position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;
+    background:var(--gold-d);color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.28);}
+  .leg.bad{outline:4px solid var(--red);outline-offset:-4px;box-shadow:none;}
+  .leg.bad.sel::after{background:var(--red);}
+  .leg .legtag{position:absolute;left:0;right:0;bottom:0;font-size:11px;font-weight:700;color:#fff;
+    background:rgba(60,42,22,.74);padding:3px 0;text-align:center;letter-spacing:.5px;}
+  .leg .legtag.bad{background:rgba(192,57,43,.86);}
 
   .options{display:flex;flex-direction:column;gap:11px;}
   .options.two{flex-direction:row;}
@@ -229,9 +241,8 @@ const QUESTIONS = [
 
   // —— 第 10 题：陷阱题（不告诉用户） ——
   { type:"trap", tag:"最后一题 · 现场鉴定", emoji:"🍗", credit:"",
-    q:"摊位上还剩这几只烤腿，仔细看——这里一共有几个「鹅腿」？",
-    options:["0 个","1 个","2 个","3 个","4 个"], answer:0,
-    why:"" }, // 陷阱：四只全是鸭腿，鹅腿数量为 0。揭晓文案在结果页统一处理。
+    q:"摊位上这几只烤腿，点选出所有「鹅腿」（0–4 张）。",
+    why:"" }, // 陷阱：四只全是鸭腿，正确答案是「一张都不选」。揭晓文案在结果页统一处理。
 ];
 
 /* ---------- 选项乱序：避免正确答案总是 A（陷阱题数字选项保持 0..4 顺序） ---------- */
@@ -277,6 +288,7 @@ const state = {
   results: [],          // 每题是否答对
   user: null,           // { name, avatar_url }
   quiz: [],             // 本局题目（选项已乱序）
+  trapPick: null,       // 陷阱题已选中的图片下标集合
 };
 
 const app = document.getElementById("app");
@@ -393,26 +405,44 @@ function renderQuestion() {
     media.appendChild(imgWithFallback(q.img, q.emoji, "qimg"));
     addCredit();
   } else if (q.type === "trap") {
-    const grid = document.createElement("div"); grid.className = "leg-grid";
-    for (let i = 1; i <= 4; i++) grid.appendChild(legCell(i));
+    // 多选图：点选所有「鹅腿」（其实全是鸭腿，正确做法是一张都不选）
+    const grid = document.createElement("div"); grid.className = "leg-grid select";
+    state.trapPick = new Set();
+    for (let i = 1; i <= 4; i++) {
+      const cell = legCell(i);
+      cell.onclick = () => {
+        if (state.answered) return;
+        const on = cell.classList.toggle("sel");
+        if (on) state.trapPick.add(i); else state.trapPick.delete(i);
+      };
+      grid.appendChild(cell);
+    }
     media.appendChild(grid);
     addCredit();
   }
 
   // 选项
   const opts = $("opts");
-  let cls = "options";
-  if (q.type === "animal" || q.type === "dish") cls += " two";
-  if (q.type === "trap") cls += " nums";
-  opts.className = cls;
-
-  q.options.forEach((label, i) => {
-    const b = document.createElement("button");
-    b.className = "opt";
-    b.innerHTML = `<span>${label}</span>`;
-    b.onclick = () => choose(i, b);
-    opts.appendChild(b);
-  });
+  if (q.type === "trap") {
+    // 陷阱题用「确认选择」按钮提交（允许不选）
+    opts.className = "options";
+    const btn = document.createElement("button");
+    btn.className = "btn btn-primary"; btn.id = "trapConfirm"; btn.style.width = "100%";
+    btn.textContent = "确认选择";
+    btn.onclick = confirmTrap;
+    opts.appendChild(btn);
+  } else {
+    let cls = "options";
+    if (q.type === "animal" || q.type === "dish") cls += " two";
+    opts.className = cls;
+    q.options.forEach((label, i) => {
+      const b = document.createElement("button");
+      b.className = "opt";
+      b.innerHTML = `<span>${label}</span>`;
+      b.onclick = () => choose(i, b);
+      opts.appendChild(b);
+    });
+  }
   // scroll to top
   document.querySelector(".scroll").scrollTop = 0;
 }
@@ -455,6 +485,43 @@ function choose(i, btn) {
   document.querySelector(".scroll").scrollTop = document.querySelector(".scroll").scrollHeight;
 }
 
+/* 陷阱题提交：四张全是鸭腿，没有鹅腿 → 只有「一张都不选」才算对 */
+function confirmTrap() {
+  if (state.answered) return;
+  state.answered = true;
+  const correct = state.trapPick.size === 0;
+  state.results[state.idx] = correct;
+  if (correct) state.correct++;
+
+  // 揭示：所有图都标「鸭腿」；被误选成「鹅腿」的标红
+  Array.from(document.querySelectorAll("#media .leg")).forEach(cell => {
+    cell.onclick = null;
+    cell.classList.add("done");
+    const picked = cell.classList.contains("sel");
+    if (picked) cell.classList.add("bad");
+    const tag = document.createElement("div");
+    tag.className = "legtag" + (picked ? " bad" : "");
+    tag.textContent = picked ? "其实是鸭腿" : "鸭腿";
+    cell.appendChild(tag);
+  });
+
+  const cb = $("trapConfirm"); if (cb) { cb.disabled = true; cb.classList.add("hidden"); }
+
+  // 反馈（保持悬念，结果页揭晓）
+  const fb = $("fb");
+  fb.className = "feedback " + (correct ? "ok" : "no");
+  fb.innerHTML = correct
+    ? `<b>有点东西。</b>你一个「鹅腿」都没选——顶住了「鹅」的心理暗示。为什么？结果页揭晓。`
+    : `<b>记下了。</b>你把鸭腿当成了「鹅腿」。到底有几个鹅腿？结果页见分晓。`;
+
+  $("nextRow").classList.remove("hidden");
+  $("nextBtn").onclick = () => {
+    if (state.idx === QUESTIONS.length - 1) renderResult();
+    else { state.idx++; renderQuestion(); }
+  };
+  document.querySelector(".scroll").scrollTop = document.querySelector(".scroll").scrollHeight;
+}
+
 /* ============================================================
    屏幕：结果 + 成就 + 分享卡片
    ============================================================ */
@@ -479,7 +546,7 @@ function renderResult() {
     </div>
     <div class="trap-reveal">
       🔍 <b>最后一题揭晓：</b>那四只烤腿……<b>一个鹅腿都没有，全是鸭腿。</b>
-      鹅腿数量 = <b>0</b>。${trapCorrect ? "你没被骗，阿姨同款套路对你无效。" : "你也数出了「鹅腿」——和清北学子一样。"}
+      鹅腿数量 = <b>0</b>，正确做法是<b>一张都不选</b>。${trapCorrect ? "你没被骗，阿姨同款套路对你无效。" : "你也把鸭腿误选成了「鹅腿」——和清北学子一样。"}
     </div>
 
     <div class="result-actions">
@@ -497,7 +564,11 @@ function renderResult() {
   document.querySelector(".scroll").scrollTop = 0;
 }
 
-/* ---------- canvas 绘制成就分享卡（竖向·内容自适应高度·零依赖导出） ---------- */
+/* ---------- 成就分享卡：苹果风排版（系统字体 / 清晰层级 / 细描边） ---------- */
+const CARD_FF = "-apple-system, 'SF Pro Display', 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif";
+function setFont(ctx, weight, px) { ctx.font = weight + " " + px + "px " + CARD_FF; }
+function setLS(ctx, px) { try { ctx.letterSpacing = px + "px"; } catch (e) {} }   // 字距，旧环境忽略
+
 let _cardReady = false;
 function drawCard(score, a, withAvatar = true) {
   const cv = $("cardCanvas");
@@ -507,35 +578,34 @@ function drawCard(score, a, withAvatar = true) {
   cv.width = W;
   const cx = W / 2;
 
-  // 先量后画：第一遍只测内容高度，让卡片按内容收紧、不留大片空白
-  const bodyTop = 150;
+  // 先量后画：第一遍只测内容高度，让卡片高度随内容自适应
+  const bodyTop = 156;
   const bodyEnd = layoutBody(ctx, W, bodyTop, a, score, false);
-  const H = Math.round(bodyEnd + 360);   // 360 预留给底部信息区
-  cv.height = H;                          // 按内容设定高度（会清空画布）
+  const H = Math.round(bodyEnd + 348);   // 预留底部信息区
+  cv.height = H;                          // 设定高度（会清空画布并重置上下文状态）
 
-  // 背景
+  // 背景：近白暖色渐变（去掉厚重金边，改极细 hairline，更克制）
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#fff8ec"); g.addColorStop(1, "#fbe9c7");
+  g.addColorStop(0, "#fffdf9"); g.addColorStop(1, "#fcf4e7");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  // 边框
-  ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 10;
-  roundRect(ctx, 26, 26, W - 52, H - 52, 40); ctx.stroke();
+  ctx.strokeStyle = "#efe4cd"; ctx.lineWidth = 2;
+  roundRect(ctx, 16, 16, W - 32, H - 32, 46); ctx.stroke();
 
   // 第二遍：真正绘制正文（字号已整体加大，弱化留白）
   layoutBody(ctx, W, bodyTop, a, score, true);
 
-  // 底部信息区分割线
-  const footY = H - 300;
+  // 底部信息区分割线（hairline）
+  const footY = H - 296;
   ctx.textAlign = "center";
-  ctx.strokeStyle = "#e8dcc6"; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(90, footY); ctx.lineTo(W - 90, footY); ctx.stroke();
+  ctx.strokeStyle = "#efe4cd"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(96, footY); ctx.lineTo(W - 96, footY); ctx.stroke();
 
   // 左：玩家头像 + 昵称
-  const avX = 190, avY = footY + 120, avR = 88;
+  const avX = 192, avY = footY + 116, avR = 84;
   // 头像底圈
   ctx.save();
   ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.closePath();
-  ctx.fillStyle = "#f0e3c8"; ctx.fill();
+  ctx.fillStyle = "#f1e6d0"; ctx.fill();
   let drewImg = false;
   if (withAvatar && state.user && state.user.avatar_url && drawCard._avatarImg && drawCard._avatarImg.complete && drawCard._avatarImg.naturalWidth) {
     try {
@@ -547,105 +617,118 @@ function drawCard(score, a, withAvatar = true) {
   ctx.restore();
   if (!drewImg) {
     // 占位：首字 or 🦆
-    ctx.fillStyle = "#a96a0e";
-    ctx.font = "80px serif";
+    ctx.fillStyle = "#b6975f";
+    setFont(ctx, 400, 74);
     const initial = (state.user && state.user.name) ? state.user.name.slice(0, 1) : "🦆";
-    ctx.fillText(initial, avX, avY + 28);
+    ctx.fillText(initial, avX, avY + 26);
   }
   // 头像描边
-  ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 6;
+  ctx.strokeStyle = "#e7d8b8"; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.stroke();
 
   // 昵称
   ctx.textAlign = "center";
-  ctx.fillStyle = "#7a4a1e";
-  ctx.font = "700 40px 'PingFang SC',sans-serif";
+  ctx.fillStyle = "#4a3a26";
+  setFont(ctx, 600, 38);
   const nm = (state.user && state.user.name) ? state.user.name : "匿名鉴定师";
-  ctx.fillText(clip(ctx, nm, 260), avX, avY + avR + 64);
+  ctx.fillText(clip(ctx, nm, 256), avX, avY + avR + 60);
 
   // 右：二维码（自动读取 /goose-duck/qrcode.png；缺失则显示留白框）
-  const qs = 220, qx = W - 100 - qs, qy = footY + 26;
+  const qs = 212, qx = W - 104 - qs, qy = footY + 30;
   ctx.fillStyle = "#ffffff";
-  roundRect(ctx, qx, qy, qs, qs, 18); ctx.fill();
+  roundRect(ctx, qx, qy, qs, qs, 20); ctx.fill();
   if (qrReady && qrImg.naturalWidth) {
     ctx.save();
-    roundRect(ctx, qx, qy, qs, qs, 18); ctx.clip();
+    roundRect(ctx, qx, qy, qs, qs, 20); ctx.clip();
     ctx.drawImage(qrImg, qx, qy, qs, qs);
     ctx.restore();
-    ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 4;
-    roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke();
+    ctx.strokeStyle = "#e7d8b8"; ctx.lineWidth = 3;
+    roundRect(ctx, qx, qy, qs, qs, 20); ctx.stroke();
   } else {
-    ctx.strokeStyle = "#c8861a"; ctx.setLineDash([12, 10]); ctx.lineWidth = 4;
-    roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = "#b3a489";
-    ctx.font = "600 30px 'PingFang SC',sans-serif";
-    ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 6);
-    ctx.font = "500 24px 'PingFang SC',sans-serif";
-    ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 34);
+    ctx.strokeStyle = "#dccba6"; ctx.setLineDash([10, 9]); ctx.lineWidth = 3;
+    roundRect(ctx, qx, qy, qs, qs, 20); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#bcae92";
+    setFont(ctx, 600, 30);
+    ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 4);
+    setFont(ctx, 400, 24);
+    ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 36);
   }
 
   // 底部 slogan
-  ctx.fillStyle = "#a96a0e";
-  ctx.font = "600 30px 'PingFang SC',sans-serif";
-  ctx.fillText("扫码也来鉴定鹅鸭 · 别再被阿姨骗啦", cx, H - 56);
+  ctx.fillStyle = "#a8916a";
+  setFont(ctx, 500, 28); setLS(ctx, 1);
+  ctx.fillText("扫码也来辨鹅鸭 · 别再被阿姨骗啦", cx, H - 54);
+  setLS(ctx, 0);
 
   _cardReady = true;
   exportCardImg(withAvatar);            // 渲染到 <img>，便于微信长按保存
 }
 
 /* 正文排版：draw=false 仅测高，draw=true 实际绘制；返回正文底部 y。
-   字号整体放大、行距收紧，卡片高度随内容自适应，避免大片留白。 */
+   苹果风：系统字体、清晰的字号/字重层级、克制的字距与留白。 */
 function layoutBody(ctx, W, startY, a, score, draw) {
   const cx = W / 2;
-  const maxTextW = W - 200;
+  const maxTextW = W - 230;
   ctx.textAlign = "center";
   let y = startY;
 
-  // 顶部标题
-  ctx.font = "800 50px 'PingFang SC','Microsoft YaHei',sans-serif";
-  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("《鸭骗战争》成就榜", cx, y); }
-  y += 110;
-
-  // 装饰 emoji
-  ctx.font = "92px serif";
-  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("🦢  🍗  🦆", cx, y); }
-  y += 96;
-
-  // 分数标签
-  ctx.font = "600 42px 'PingFang SC',sans-serif";
-  if (draw) { ctx.fillStyle = "#9a8b73"; ctx.fillText("本次鉴定得分", cx, y); }
-  y += 132;
-
-  // 分数
-  ctx.font = "900 160px 'PingFang SC',sans-serif";
-  if (draw) { ctx.fillStyle = "#7a4a1e"; ctx.fillText(score + " / 10", cx, y); }
-  y += 116;
-
-  // 奖杯
-  ctx.font = "82px serif";
-  if (draw) { ctx.fillStyle = "#7a4a1e"; ctx.fillText("🏆", cx, y); }
-  y += 104;
-
-  // 称号
-  ctx.font = "900 76px 'PingFang SC',sans-serif";
-  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText(a.t, cx, y); }
-  y += 80;
-
-  // 描述（自动换行）
-  ctx.font = "500 48px 'PingFang SC',sans-serif";
-  if (draw) ctx.fillStyle = "#5a4a36";
-  wrapLines(ctx, a.d, maxTextW).forEach(line => { if (draw) ctx.fillText(line, cx, y); y += 66; });
-
-  // 特点标签
-  y += 28;
-  ctx.font = "700 40px 'PingFang SC',sans-serif";
-  if (draw) { ctx.fillStyle = "#c8861a"; ctx.fillText(a.lbl, cx, y); }
+  // 1) eyebrow 小标签（字距拉开，低调）
+  setFont(ctx, 600, 32); setLS(ctx, 6);
+  if (draw) { ctx.fillStyle = "#b6975f"; ctx.fillText("鸭骗战争 · 成就榜", cx, y); }
+  setLS(ctx, 0);
   y += 72;
 
-  // 特点列表
-  ctx.font = "500 46px 'PingFang SC',sans-serif";
-  if (draw) ctx.fillStyle = "#5a4a36";
-  a.f.forEach(line => { if (draw) ctx.fillText("· " + line, cx, y); y += 66; });
+  // 2) 装饰 emoji（克制，不喧宾夺主）
+  setFont(ctx, 400, 54);
+  if (draw) ctx.fillText("🦢  🍗  🦆", cx, y);
+  y += 104;
+
+  // 3) 得分标签
+  setFont(ctx, 500, 32); setLS(ctx, 2);
+  if (draw) { ctx.fillStyle = "#a8916a"; ctx.fillText("本次鉴定得分", cx, y); }
+  setLS(ctx, 0);
+  y += 126;
+
+  // 4) 大分数（半粗 + 收紧字距，最具份量）
+  setFont(ctx, 700, 176); setLS(ctx, -4);
+  if (draw) { ctx.fillStyle = "#5a3a16"; ctx.fillText(score + " / 10", cx, y); }
+  setLS(ctx, 0);
+  y += 74;
+
+  // 5) hairline 短分隔
+  if (draw) {
+    ctx.strokeStyle = "#ecdfc6"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 64, y); ctx.lineTo(cx + 64, y); ctx.stroke();
+  }
+  y += 74;
+
+  // 6) 奖杯（小）
+  setFont(ctx, 400, 50);
+  if (draw) ctx.fillText("🏆", cx, y);
+  y += 74;
+
+  // 7) 称号（次重点，近黑暖色）
+  setFont(ctx, 700, 72); setLS(ctx, 1);
+  if (draw) { ctx.fillStyle = "#2f2316"; ctx.fillText(a.t, cx, y); }
+  setLS(ctx, 0);
+  y += 74;
+
+  // 8) 描述（常规字重，灰棕，自动换行）
+  setFont(ctx, 400, 42);
+  if (draw) ctx.fillStyle = "#7c6647";
+  wrapLines(ctx, a.d, maxTextW).forEach(line => { if (draw) ctx.fillText(line, cx, y); y += 60; });
+
+  // 9) 特点标签
+  y += 42;
+  setFont(ctx, 600, 29); setLS(ctx, 4);
+  if (draw) { ctx.fillStyle = "#c8861a"; ctx.fillText(a.lbl, cx, y); }
+  setLS(ctx, 0);
+  y += 62;
+
+  // 10) 特点列表
+  setFont(ctx, 400, 40);
+  if (draw) ctx.fillStyle = "#6f5c41";
+  a.f.forEach(line => { if (draw) ctx.fillText("·  " + line, cx, y); y += 60; });
 
   return y;
 }
