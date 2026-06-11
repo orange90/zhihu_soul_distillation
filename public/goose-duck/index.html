@@ -654,10 +654,10 @@ function drawCard(score, a, withAvatar = true) {
     ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 36);
   }
 
-  // 底部 slogan
+  // 底部 slogan：整体左移约五个字宽，避开右下角二维码
   ctx.fillStyle = "#a8916a";
   setFont(ctx, 500, 28); setLS(ctx, 1);
-  ctx.fillText("扫码也来辨鹅鸭 · 别被骗", cx, H - 54);
+  ctx.fillText("扫码也来辨鹅鸭 · 别被骗", cx - 145, H - 54);
   setLS(ctx, 0);
 
   _cardReady = true;
