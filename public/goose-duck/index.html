@@ -127,8 +127,9 @@
   .trap-reveal{margin:14px 0 0;background:#fff7e8;border:1px dashed var(--gold);border-radius:12px;padding:12px 14px;
     font-size:13px;color:var(--gold-d);line-height:1.6;}
   .result-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px;}
-  canvas#cardCanvas{width:100%;border-radius:16px;box-shadow:0 8px 22px var(--shadow);display:block;margin-top:6px;background:#fff;}
-  .card-hint{font-size:12px;color:#9a8b73;text-align:center;margin-top:10px;line-height:1.6;}
+  img#cardImg{width:100%;border-radius:16px;box-shadow:0 8px 22px var(--shadow);display:block;margin-top:6px;background:#fff;
+    -webkit-touch-callout:default;touch-callout:default;user-select:none;}
+  .card-hint{font-size:13px;color:#9a8b73;text-align:center;margin-top:10px;line-height:1.6;}
   .toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:rgba(42,33,24,.92);color:#fff;
     font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;}
   .toast.show{opacity:1;}
@@ -433,9 +434,10 @@ function renderResult() {
     </div>
 
     <div class="result-actions">
-      <canvas id="cardCanvas" width="1080" height="1620"></canvas>
-      <p class="card-hint" id="cardHint">↑ 你的成就分享卡（二维码区域待补全）</p>
-      <button class="btn btn-primary" id="dlBtn" style="width:100%">⬇️ 保存成就卡片</button>
+      <img id="cardImg" alt="鹅鸭鉴定师 · 成就分享卡" />
+      <p class="card-hint" id="cardHint">👆 长按上方图片，即可保存到相册或转发好友</p>
+      <canvas id="cardCanvas" class="hidden"></canvas>
+      <button class="btn btn-primary" id="dlBtn" style="width:100%">⬇️ 保存图片</button>
       <button class="btn btn-ghost" id="againBtn" style="width:100%">再玩一次</button>
     </div>
   `;
@@ -446,13 +448,21 @@ function renderResult() {
   document.querySelector(".scroll").scrollTop = 0;
 }
 
-/* ---------- canvas 绘制成就分享卡（竖向，零依赖导出） ---------- */
+/* ---------- canvas 绘制成就分享卡（竖向·内容自适应高度·零依赖导出） ---------- */
 let _cardReady = false;
 function drawCard(score, a, withAvatar = true) {
   const cv = $("cardCanvas");
+  if (!cv) return;                       // 已离开结果页（异步回调）则跳过
   const ctx = cv.getContext("2d");
-  const W = cv.width, H = cv.height;
+  const W = 1080;
+  cv.width = W;
   const cx = W / 2;
+
+  // 先量后画：第一遍只测内容高度，让卡片按内容收紧、不留大片空白
+  const bodyTop = 150;
+  const bodyEnd = layoutBody(ctx, W, bodyTop, a, score, false);
+  const H = Math.round(bodyEnd + 360);   // 360 预留给底部信息区
+  cv.height = H;                          // 按内容设定高度（会清空画布）
 
   // 背景
   const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -462,53 +472,17 @@ function drawCard(score, a, withAvatar = true) {
   ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 10;
   roundRect(ctx, 26, 26, W - 52, H - 52, 40); ctx.stroke();
 
-  ctx.textAlign = "center";
-
-  // 顶部标题
-  ctx.fillStyle = "#a96a0e";
-  ctx.font = "700 40px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillText("《鹅鸭鉴定师》成就榜", cx, 130);
-
-  // 装饰 emoji
-  ctx.font = "84px serif";
-  ctx.fillText("🦢  🍗  🦆", cx, 240);
-
-  // 分数
-  ctx.fillStyle = "#9a8b73";
-  ctx.font = "600 34px 'PingFang SC',sans-serif";
-  ctx.fillText("本次鉴定得分", cx, 320);
-  ctx.fillStyle = "#7a4a1e";
-  ctx.font = "900 130px 'PingFang SC',sans-serif";
-  ctx.fillText(score + " / 10", cx, 450);
-
-  // 称号
-  ctx.font = "70px serif"; ctx.fillText("🏆", cx, 560);
-  ctx.fillStyle = "#a96a0e";
-  ctx.font = "900 64px 'PingFang SC',sans-serif";
-  ctx.fillText(a.t, cx, 645);
-
-  // 描述（自动换行）
-  ctx.fillStyle = "#5a4a36";
-  ctx.font = "500 36px 'PingFang SC',sans-serif";
-  let y = wrapText(ctx, a.d, cx, 720, W - 220, 50);
-
-  // 特点
-  y += 34;
-  ctx.fillStyle = "#c8861a";
-  ctx.font = "700 30px 'PingFang SC',sans-serif";
-  ctx.fillText(a.lbl, cx, y);
-  y += 50;
-  ctx.fillStyle = "#5a4a36";
-  ctx.font = "500 34px 'PingFang SC',sans-serif";
-  a.f.forEach(line => { ctx.fillText("· " + line, cx, y); y += 52; });
+  // 第二遍：真正绘制正文（字号已整体加大，弱化留白）
+  layoutBody(ctx, W, bodyTop, a, score, true);
 
   // 底部信息区分割线
   const footY = H - 300;
+  ctx.textAlign = "center";
   ctx.strokeStyle = "#e8dcc6"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(90, footY); ctx.lineTo(W - 90, footY); ctx.stroke();
 
   // 左：玩家头像 + 昵称
-  const avX = 180, avY = footY + 120, avR = 80;
+  const avX = 190, avY = footY + 120, avR = 88;
   // 头像底圈
   ctx.save();
   ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.closePath();
@@ -525,9 +499,9 @@ function drawCard(score, a, withAvatar = true) {
   if (!drewImg) {
     // 占位：首字 or 🦆
     ctx.fillStyle = "#a96a0e";
-    ctx.font = "70px serif";
+    ctx.font = "80px serif";
     const initial = (state.user && state.user.name) ? state.user.name.slice(0, 1) : "🦆";
-    ctx.fillText(initial, avX, avY + 24);
+    ctx.fillText(initial, avX, avY + 28);
   }
   // 头像描边
   ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 6;
@@ -536,12 +510,12 @@ function drawCard(score, a, withAvatar = true) {
   // 昵称
   ctx.textAlign = "center";
   ctx.fillStyle = "#7a4a1e";
-  ctx.font = "700 34px 'PingFang SC',sans-serif";
+  ctx.font = "700 40px 'PingFang SC',sans-serif";
   const nm = (state.user && state.user.name) ? state.user.name : "匿名鉴定师";
-  ctx.fillText(clip(ctx, nm, 240), avX, avY + avR + 60);
+  ctx.fillText(clip(ctx, nm, 260), avX, avY + avR + 64);
 
   // 右：二维码（自动读取 /goose-duck/qrcode.png；缺失则显示留白框）
-  const qs = 200, qx = W - 110 - qs, qy = footY + 30;
+  const qs = 220, qx = W - 100 - qs, qy = footY + 26;
   ctx.fillStyle = "#ffffff";
   roundRect(ctx, qx, qy, qs, qs, 18); ctx.fill();
   if (qrReady && qrImg.naturalWidth) {
@@ -555,18 +529,88 @@ function drawCard(score, a, withAvatar = true) {
     ctx.strokeStyle = "#c8861a"; ctx.setLineDash([12, 10]); ctx.lineWidth = 4;
     roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = "#b3a489";
-    ctx.font = "600 26px 'PingFang SC',sans-serif";
+    ctx.font = "600 30px 'PingFang SC',sans-serif";
     ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 6);
-    ctx.font = "500 20px 'PingFang SC',sans-serif";
-    ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 30);
+    ctx.font = "500 24px 'PingFang SC',sans-serif";
+    ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 34);
   }
 
   // 底部 slogan
   ctx.fillStyle = "#a96a0e";
-  ctx.font = "600 26px 'PingFang SC',sans-serif";
-  ctx.fillText("扫码也来鉴定鹅鸭 · 别再被阿姨骗啦", cx, H - 60);
+  ctx.font = "600 30px 'PingFang SC',sans-serif";
+  ctx.fillText("扫码也来鉴定鹅鸭 · 别再被阿姨骗啦", cx, H - 56);
 
   _cardReady = true;
+  exportCardImg(withAvatar);            // 渲染到 <img>，便于微信长按保存
+}
+
+/* 正文排版：draw=false 仅测高，draw=true 实际绘制；返回正文底部 y。
+   字号整体放大、行距收紧，卡片高度随内容自适应，避免大片留白。 */
+function layoutBody(ctx, W, startY, a, score, draw) {
+  const cx = W / 2;
+  const maxTextW = W - 200;
+  ctx.textAlign = "center";
+  let y = startY;
+
+  // 顶部标题
+  ctx.font = "800 50px 'PingFang SC','Microsoft YaHei',sans-serif";
+  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("《鹅鸭鉴定师》成就榜", cx, y); }
+  y += 110;
+
+  // 装饰 emoji
+  ctx.font = "92px serif";
+  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText("🦢  🍗  🦆", cx, y); }
+  y += 96;
+
+  // 分数标签
+  ctx.font = "600 42px 'PingFang SC',sans-serif";
+  if (draw) { ctx.fillStyle = "#9a8b73"; ctx.fillText("本次鉴定得分", cx, y); }
+  y += 132;
+
+  // 分数
+  ctx.font = "900 160px 'PingFang SC',sans-serif";
+  if (draw) { ctx.fillStyle = "#7a4a1e"; ctx.fillText(score + " / 10", cx, y); }
+  y += 116;
+
+  // 奖杯
+  ctx.font = "82px serif";
+  if (draw) { ctx.fillStyle = "#7a4a1e"; ctx.fillText("🏆", cx, y); }
+  y += 104;
+
+  // 称号
+  ctx.font = "900 76px 'PingFang SC',sans-serif";
+  if (draw) { ctx.fillStyle = "#a96a0e"; ctx.fillText(a.t, cx, y); }
+  y += 80;
+
+  // 描述（自动换行）
+  ctx.font = "500 48px 'PingFang SC',sans-serif";
+  if (draw) ctx.fillStyle = "#5a4a36";
+  wrapLines(ctx, a.d, maxTextW).forEach(line => { if (draw) ctx.fillText(line, cx, y); y += 66; });
+
+  // 特点标签
+  y += 28;
+  ctx.font = "700 40px 'PingFang SC',sans-serif";
+  if (draw) { ctx.fillStyle = "#c8861a"; ctx.fillText(a.lbl, cx, y); }
+  y += 72;
+
+  // 特点列表
+  ctx.font = "500 46px 'PingFang SC',sans-serif";
+  if (draw) ctx.fillStyle = "#5a4a36";
+  a.f.forEach(line => { if (draw) ctx.fillText("· " + line, cx, y); y += 66; });
+
+  return y;
+}
+
+/* 把离屏 canvas 导出到 <img>：canvas 在微信里无法长按保存，<img> 可以 */
+function exportCardImg(withAvatar) {
+  const cv = $("cardCanvas"), img = $("cardImg");
+  if (!cv || !img) return;
+  try {
+    img.src = cv.toDataURL("image/png");
+  } catch (e) {
+    // 头像跨域污染画布 → 去掉头像重绘（withAvatar=false 不会污染，避免死循环）
+    if (withAvatar) drawCard(state.correct, ACHIEVEMENTS[state.correct], false);
+  }
 }
 
 /* 加载头像（CORS）后重绘 */
@@ -581,25 +625,17 @@ function loadAvatarThenRedraw() {
 }
 
 function downloadCard() {
-  const cv = $("cardCanvas");
+  const img = $("cardImg");
+  if (!img || !img.src) { toast("图片生成中，请稍候再试"); return; }
   try {
-    const url = cv.toDataURL("image/png");
     const a = document.createElement("a");
-    a.href = url;
+    a.href = img.src;
     a.download = "鹅鸭鉴定师-成就卡.png";
     a.click();
-    toast("已生成图片，可保存到相册");
+    toast("若未自动下载，请长按上方图片保存到相册");
   } catch (e) {
-    // 头像跨域污染了画布 → 去掉头像重绘再导出
-    try {
-      drawCard(state.correct, ACHIEVEMENTS[state.correct], false);
-      const url = cv.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = url; a.download = "鹅鸭鉴定师-成就卡.png"; a.click();
-      toast("已生成图片（头像因跨域已省略）");
-    } catch (e2) {
-      toast("当前环境不支持直接保存，请截图分享");
-    }
+    // 微信等内置浏览器不支持下载属性 → 引导长按
+    toast("请长按上方图片保存到相册");
   }
 }
 
@@ -613,15 +649,16 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
-function wrapText(ctx, text, x, y, maxW, lh) {
+function wrapLines(ctx, text, maxW) {
   const chars = text.split("");
-  let line = "", yy = y;
+  const lines = [];
+  let line = "";
   for (const ch of chars) {
-    if (ctx.measureText(line + ch).width > maxW && line) { ctx.fillText(line, x, yy); line = ch; yy += lh; }
+    if (ctx.measureText(line + ch).width > maxW && line) { lines.push(line); line = ch; }
     else line += ch;
   }
-  if (line) { ctx.fillText(line, x, yy); yy += lh; }
-  return yy;
+  if (line) lines.push(line);
+  return lines;
 }
 function clip(ctx, text, maxW) {
   if (ctx.measureText(text).width <= maxW) return text;
