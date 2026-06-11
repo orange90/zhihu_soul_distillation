@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>鹅鸭鉴定师 · 你能吃出鹅腿还是鸭腿吗？</title>
+<meta name="description" content="结合「清华鹅腿阿姨」热点，10 道题测测你的鹅鸭鉴定段位。三年了，你是一点没吃出来啊？" />
+<style>
+  :root{
+    --paper:#fffaf2; --ink:#2a2118; --brown:#7a4a1e; --gold:#c8861a; --gold-d:#a96a0e;
+    --red:#c0392b; --green:#1f8a4c; --line:#e8dcc6; --shadow:rgba(80,50,10,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif;
+    color:var(--ink);
+    background:#3a2a18;
+    background-image:radial-gradient(ellipse 90% 60% at 50% -10%, #5a4226, transparent 60%);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100%;
+  }
+  /* 竖屏手机框：宽屏时显示一个居中的竖向方框 */
+  #phone{
+    position:relative;width:100%;max-width:430px;height:100vh;max-height:100vh;
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(200,134,26,.08), transparent 40%),
+      radial-gradient(circle at 88% 92%, rgba(192,57,43,.06), transparent 40%);
+    overflow:hidden;display:flex;flex-direction:column;
+  }
+  @media (min-width:768px){
+    body{padding:24px;}
+    #phone{
+      height:880px;max-height:92vh;border-radius:38px;
+      box-shadow:0 24px 60px rgba(0,0,0,.45), 0 0 0 11px #1c140b, 0 0 0 13px #2c2014;
+    }
+    #phone::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+      width:120px;height:24px;background:#1c140b;border-radius:0 0 16px 16px;z-index:20;}
+  }
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+  .scroll::-webkit-scrollbar{width:0;}
+  .pad{padding:22px 20px 28px;}
+
+  /* 顶部条 */
+  header{flex-shrink:0;padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);background:rgba(255,250,242,.9);backdrop-filter:blur(4px);z-index:10;}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--brown);font-size:16px;letter-spacing:.5px;}
+  .logo .e{font-size:20px;}
+  .login-chip{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--brown);
+    border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px 4px 5px;cursor:pointer;max-width:150px;}
+  .login-chip img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#eee;}
+  .login-chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* 通用 */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:none;
+    font-family:inherit;font-weight:700;border-radius:14px;transition:transform .08s, box-shadow .2s, background .2s;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-d));color:#fff;
+    padding:15px 26px;font-size:17px;box-shadow:0 8px 18px rgba(168,106,14,.35);}
+  .btn-ghost{background:#fff;color:var(--brown);border:1.5px solid var(--gold);padding:12px 20px;font-size:15px;}
+
+  /* 开始页 */
+  .hero{text-align:center;padding-top:8px;}
+  .hero .big-emoji{font-size:74px;line-height:1;margin:6px 0 4px;filter:drop-shadow(0 6px 10px var(--shadow));}
+  .hero h1{font-size:34px;margin:6px 0 2px;color:var(--brown);letter-spacing:2px;font-weight:900;}
+  .hero .sub{color:var(--gold-d);font-weight:700;font-size:15px;margin:0 0 14px;}
+  .quote-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;text-align:left;
+    box-shadow:0 6px 16px var(--shadow);margin:6px 0 18px;}
+  .quote-card p{margin:0 0 8px;font-size:14px;line-height:1.7;color:#5a4a36;}
+  .quote-card p:last-child{margin-bottom:0;}
+  .quote-card .hl{color:var(--red);font-weight:800;}
+  .meta{font-size:12px;color:#9a8b73;margin-top:16px;line-height:1.7;}
+
+  /* 答题页 */
+  .progress-wrap{margin:2px 0 16px;}
+  .progress-top{display:flex;justify-content:space-between;font-size:12px;color:#9a8b73;margin-bottom:6px;font-weight:600;}
+  .bar{height:8px;background:#efe4d0;border-radius:999px;overflow:hidden;}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--red));border-radius:999px;transition:width .35s ease;}
+  .qtag{display:inline-block;font-size:11px;font-weight:700;color:var(--gold-d);background:#fbeccb;border-radius:999px;padding:3px 10px;margin-bottom:10px;}
+  .qtitle{font-size:21px;font-weight:800;line-height:1.45;color:var(--ink);margin:0 0 16px;}
+  .qimg{width:100%;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#f3ead8;margin-bottom:16px;box-shadow:0 6px 16px var(--shadow);}
+  .qimg img{width:100%;height:230px;object-fit:cover;display:block;}
+  .qimg .emoji-ph{height:230px;display:flex;align-items:center;justify-content:center;font-size:96px;}
+  .qcredit{font-size:10px;color:#b3a489;text-align:right;margin:-10px 2px 14px;}
+
+  /* 陷阱题四宫格 */
+  .leg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+  .leg{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#f3ead8;box-shadow:0 4px 10px var(--shadow);}
+  .leg img{width:100%;height:110px;object-fit:cover;display:block;}
+  .leg .emoji-ph{height:110px;display:flex;align-items:center;justify-content:center;font-size:54px;}
+
+  .options{display:flex;flex-direction:column;gap:11px;}
+  .options.two{flex-direction:row;}
+  .options.two .opt{flex:1;justify-content:center;font-size:18px;padding:18px 8px;}
+  .options.nums{flex-direction:row;flex-wrap:wrap;gap:9px;}
+  .options.nums .opt{flex:1;min-width:54px;justify-content:center;font-size:20px;padding:16px 4px;font-weight:800;}
+  .opt{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:14px;
+    padding:15px 16px;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;
+    transition:border-color .15s, background .15s, transform .08s;font-family:inherit;}
+  .opt:active{transform:scale(.98);}
+  .opt:hover{border-color:var(--gold);}
+  .opt.correct{background:#e9f8ee;border-color:var(--green);color:var(--green);}
+  .opt.wrong{background:#fdeceb;border-color:var(--red);color:var(--red);}
+  .opt.dim{opacity:.5;}
+  .opt .ic{margin-left:auto;font-weight:800;}
+  .feedback{margin-top:16px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);
+    border-radius:12px;padding:13px 15px;font-size:13.5px;line-height:1.7;color:#5a4a36;animation:fade .3s ease;}
+  .feedback.ok{border-left-color:var(--green);}
+  .feedback.no{border-left-color:var(--red);}
+  .feedback b{color:var(--brown);}
+  .next-row{margin-top:18px;display:flex;justify-content:flex-end;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  /* 结果页 */
+  .result-head{text-align:center;margin-bottom:14px;}
+  .score-ring{font-size:15px;color:#9a8b73;font-weight:700;}
+  .score-big{font-size:40px;font-weight:900;color:var(--brown);margin:2px 0;}
+  .ach{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 8px 20px var(--shadow);text-align:center;}
+  .ach .trophy{font-size:30px;}
+  .ach .title{font-size:26px;font-weight:900;color:var(--brown);margin:4px 0 8px;letter-spacing:1px;}
+  .ach .desc{font-size:15px;color:#5a4a36;line-height:1.7;margin:0 0 14px;}
+  .ach .feats{text-align:left;display:inline-block;margin:0 auto;}
+  .ach .feats .lbl{font-size:12px;color:var(--gold-d);font-weight:700;margin-bottom:5px;}
+  .ach .feats ul{margin:0;padding-left:18px;}
+  .ach .feats li{font-size:13.5px;color:#5a4a36;line-height:1.9;}
+  .trap-reveal{margin:14px 0 0;background:#fff7e8;border:1px dashed var(--gold);border-radius:12px;padding:12px 14px;
+    font-size:13px;color:var(--gold-d);line-height:1.6;}
+  .result-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px;}
+  canvas#cardCanvas{width:100%;border-radius:16px;box-shadow:0 8px 22px var(--shadow);display:block;margin-top:6px;background:#fff;}
+  .card-hint{font-size:12px;color:#9a8b73;text-align:center;margin-top:10px;line-height:1.6;}
+  .toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:rgba(42,33,24,.92);color:#fff;
+    font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;}
+  .toast.show{opacity:1;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div id="phone">
+  <header>
+    <div class="logo"><span class="e">🦢🦆</span><span>鹅鸭鉴定师</span></div>
+    <div class="login-chip" id="loginChip" title="点击登录知乎，把头像昵称放进成就卡片">
+      <img id="chipAvatar" src="" alt="" style="display:none" />
+      <span class="nm" id="chipName">知乎登录</span>
+    </div>
+  </header>
+
+  <div class="scroll">
+    <div class="pad" id="app"><!-- screens injected here --></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   鹅鸭鉴定师 —— 独立单页小游戏
+   - 题库 / 成就 / 计分 / 分享卡片(canvas) 全部内联，自包含
+   - 可选复用本项目已部署的知乎 OAuth：/api/auth/me、/api/auth/login
+   - 图片外链 Wikimedia Commons（Special:FilePath 稳定直链），失败回退 emoji
+   ============================================================ */
+
+/* ---------- 图片来源（Wikimedia Commons，CC 许可，允许外链） ----------
+   用 Special:FilePath 重定向，无需计算文件 hash，最稳。
+   如需替换为更合适的图，只改下面 6 个文件名即可。 */
+const fp = (name, w = 760) =>
+  "https://commons.wikimedia.org/wiki/Special:FilePath/" + encodeURIComponent(name) + "?width=" + w;
+
+const IMG = {
+  duckSide:  fp("Male mallard duck 2.jpg"),     // 鸭·侧面（绿头鸭，特征明显）
+  gooseSide: fp("Domestic Goose.jpg"),          // 鹅·侧面（家鹅，长脖子）
+  duckBack:  fp("Mallard Duck Land.jpg"),       // 鸭·背影候选（如需更标准背影可替换）
+  gooseBack: fp("Greylag Goose.JPG"),           // 鹅·背影候选（如需更标准背影可替换）
+  roastGoose: fp("Cantonese roasted goose.jpg"),// 港式烧鹅（菜品）
+  roastDuck:  fp("Roasted Beijing Duck sliced.jpg"), // 烤鸭（陷阱题四宫格用，回退🍗）
+};
+
+/* ---------- 题库（共 10 题） ---------- */
+const QUESTIONS = [
+  // —— 4 道文字题 ——
+  { type:"text", tag:"文字题 · 时事",
+    q:"「鹅腿阿姨」事件里，阿姨最终承认，卖了多年的「鹅腿」其实是什么？",
+    options:["鸭腿","鹅腿","鸡腿","鸵鸟腿"], answer:0,
+    why:"2024 年 6 月，阿姨公开承认日常售卖的烤腿原材料其实是<b>鸭腿</b>。清北学子被「鹅」了好几年。" },
+  { type:"text", tag:"文字题 · 外形",
+    q:"和鸭子相比，鹅最直观的外形区别是？",
+    options:["体型更大、脖子更长","体型更小、脖子更短","羽毛颜色更鲜艳","完全没有脚蹼"], answer:0,
+    why:"鹅普遍<b>体型更大、脖子更长</b>，站姿更挺拔；鸭子矮胖、脖子短。" },
+  { type:"text", tag:"文字题 · 细节",
+    q:"下面哪个特征常见于鹅，而普通鸭子一般没有？",
+    options:["额头/喙根部有肉瘤（隆起）","身上有羽毛","脚上有脚蹼","会在水里游泳"], answer:0,
+    why:"很多鹅（如中国鹅/狮头鹅）<b>喙根部有明显肉瘤</b>，这是鸭子通常没有的辨识点。" },
+  { type:"text", tag:"文字题 · 口感",
+    q:"论口感，鹅肉和鸭肉相比通常更……？",
+    options:["纤维更粗、更有嚼劲，味道更「野」","完全一模一样吃不出","鹅肉是甜的","鸭肉没有骨头"], answer:0,
+    why:"鹅肉颜色更深、<b>纤维更粗更有嚼劲</b>，风味更浓郁；鸭肉相对细嫩。——所以理论上是能吃出来的。" },
+
+  // —— 4 道动物分辨图（含鸭背影 / 鹅背影） ——
+  { type:"animal", tag:"看图鉴定 · 动物", img:IMG.duckSide, emoji:"🦆",
+    q:"看这只水里的鸟，是鹅还是鸭？", options:["鹅","鸭"], answer:1,
+    why:"绿头、矮身、短脖——这是<b>鸭</b>（绿头鸭）。" },
+  { type:"animal", tag:"看图鉴定 · 动物", img:IMG.gooseSide, emoji:"🦢",
+    q:"这一只呢？是鹅还是鸭？", options:["鹅","鸭"], answer:0,
+    why:"长脖子、体型大、挺拔——这是<b>鹅</b>。" },
+  { type:"animal", tag:"看图鉴定 · 背影", img:IMG.duckBack, emoji:"🦆",
+    q:"只给你一个背影，凭轮廓判断：鹅还是鸭？", options:["鹅","鸭"], answer:1,
+    why:"矮胖紧凑的小背影，是<b>鸭</b>。背影最容易看走眼，阿姨就靠这个。" },
+  { type:"animal", tag:"看图鉴定 · 背影", img:IMG.gooseBack, emoji:"🦢",
+    q:"再来一个背影，鹅还是鸭？", options:["鹅","鸭"], answer:0,
+    why:"个头大、脖子长的背影，是<b>鹅</b>。" },
+
+  // —— 菜品分辨图 ——
+  { type:"dish", tag:"看图鉴定 · 菜品", img:IMG.roastGoose, emoji:"🍖",
+    q:"上菜了！这盘油亮的烤味，是鹅肉还是鸭肉？", options:["鹅肉","鸭肉"], answer:0,
+    why:"这是港式<b>烧鹅</b>——块头大、皮色深红油亮。鹅肉无误。" },
+
+  // —— 第 10 题：陷阱题（不告诉用户） ——
+  { type:"trap", tag:"最后一题 · 现场鉴定", img:IMG.roastDuck, emoji:"🍗",
+    q:"摊位上还剩这几只烤腿，仔细看——这里一共有几个「鹅腿」？",
+    options:["0 个","1 个","2 个","3 个","4 个"], answer:0,
+    why:"" }, // 陷阱：四只全是鸭腿，鹅腿数量为 0。揭晓文案在结果页统一处理。
+];
+
+/* ---------- 成就体系（0–10，逐字保留用户文案） ---------- */
+const ACHIEVEMENTS = [
+  { t:"清北学生", d:"三年了，你是一点没吃出来啊。", lbl:"称号说明：", f:["鹅鸭识别能力：0%","骗子最爱的客户","阿姨VIP会员"] },
+  { t:"鹅腿信徒", d:"阿姨说是鹅，那一定是鹅。", lbl:"特点：", f:["从不质疑","从不观察","从不思考"] },
+  { t:"鸭骗受害者", d:"隐约感觉不对，但还是买了。", lbl:"特点：", f:["有怀疑","没证据","最后认输"] },
+  { t:"鹅学休学生", d:"上过课，但没毕业。", lbl:"特点：", f:["偶尔蒙对","主要靠运气"] },
+  { t:"食堂观察员", d:"开始注意脖子长短了。", lbl:"特点：", f:["已经进入状态","但经常看走眼"] },
+  { t:"半鹅半鸭研究员", d:"你已经超过了全国 50% 的网友。", lbl:"特点：", f:["基础知识掌握","偶尔被烤腿迷惑"] },
+  { t:"鹅腿打假先锋", d:"开始质疑世界。", lbl:"特点：", f:["会看体型","会看嘴型","会看脚蹼"] },
+  { t:"鹅学硕士", d:"你已经有资格在校门口摆摊了。", lbl:"特点：", f:["大部分情况都能认出来"] },
+  { t:"鸭子克星", d:"鸭子看到你都会紧张。", lbl:"特点：", f:["识别准确率极高","不容易被骗"] },
+  { t:"鹅腿阿姨天敌", d:"阿姨看到你立刻收摊。", lbl:"特点：", f:["肉眼鉴鹅","火眼金睛"] },
+  { t:"鹅学大师", d:"真鹅假鸭，皆逃不过你的双眼。", lbl:"特点：", f:["满分鉴定，无一失手","建议直接去摆摊打假"] },
+];
+
+/* ---------- 状态 ---------- */
+const state = {
+  idx: 0,
+  correct: 0,
+  answered: false,
+  results: [],          // 每题是否答对
+  user: null,           // { name, avatar_url }
+};
+
+const app = document.getElementById("app");
+const $ = (id) => document.getElementById(id);
+
+/* ---------- 工具：带 emoji 回退的图片 ---------- */
+function imgWithFallback(src, emoji, cls) {
+  const wrap = document.createElement("div");
+  wrap.className = cls;
+  const im = document.createElement("img");
+  im.src = src;
+  im.alt = "";
+  im.referrerPolicy = "no-referrer";
+  im.onerror = () => {
+    const ph = document.createElement("div");
+    ph.className = "emoji-ph";
+    ph.textContent = emoji;
+    im.replaceWith(ph);
+  };
+  wrap.appendChild(im);
+  return wrap;
+}
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 1900);
+}
+
+/* ============================================================
+   屏幕：开始页
+   ============================================================ */
+function renderStart() {
+  state.idx = 0; state.correct = 0; state.answered = false; state.results = [];
+  app.innerHTML = `
+    <div class="hero">
+      <div class="big-emoji">🦢🍗🦆</div>
+      <h1>鹅鸭鉴定师</h1>
+      <p class="sub">三年了，你是一点没吃出来啊？</p>
+    </div>
+    <div class="quote-card">
+      <p>清华、北大、人大的学子，曾为一只 16 元的「鹅腿」在网上建了几十个群争抢。</p>
+      <p>直到有一天，<span class="hl">阿姨承认：卖的其实是鸭腿。</span></p>
+      <p>现在，轮到你了——<b>10 道题</b>，测测你的鹅鸭鉴定段位，看你是「清北学生」还是「鹅学大师」。</p>
+    </div>
+    <button class="btn btn-primary" id="startBtn" style="width:100%">开始鉴定 →</button>
+    <p class="meta">玩法：4 道知识题 + 4 道看图辨鹅鸭 + 看图辨菜品 + 一道现场鉴定。<br/>
+    登录知乎可把你的头像昵称印进成就分享卡片（不登录也能玩）。</p>
+  `;
+  $("startBtn").onclick = () => { state.idx = 0; renderQuestion(); };
+}
+
+/* ============================================================
+   屏幕：答题
+   ============================================================ */
+function renderQuestion() {
+  state.answered = false;
+  const q = QUESTIONS[state.idx];
+  const total = QUESTIONS.length;
+  const pct = Math.round((state.idx) / total * 100);
+
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <div class="progress-wrap">
+      <div class="progress-top"><span>第 ${state.idx + 1} / ${total} 题</span><span>已答对 ${state.correct}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>
+    <span class="qtag">${q.tag}</span>
+    <h2 class="qtitle">${q.q}</h2>
+    <div id="media"></div>
+    <div id="opts"></div>
+    <div id="fb"></div>
+    <div class="next-row hidden" id="nextRow">
+      <button class="btn btn-primary" id="nextBtn">${state.idx === total - 1 ? "看结果 🏆" : "下一题 →"}</button>
+    </div>
+  `;
+  app.innerHTML = "";
+  app.appendChild(el);
+
+  // 媒体区
+  const media = $("media");
+  if (q.type === "animal" || q.type === "dish") {
+    media.appendChild(imgWithFallback(q.img, q.emoji, "qimg"));
+    const c = document.createElement("div"); c.className = "qcredit"; c.textContent = "图片来源：Wikimedia Commons (CC)";
+    media.appendChild(c);
+  } else if (q.type === "trap") {
+    const grid = document.createElement("div"); grid.className = "leg-grid";
+    for (let i = 0; i < 4; i++) grid.appendChild(imgWithFallback(q.img, "🍗", "leg"));
+    media.appendChild(grid);
+    const c = document.createElement("div"); c.className = "qcredit"; c.textContent = "图片来源：Wikimedia Commons (CC)";
+    media.appendChild(c);
+  }
+
+  // 选项
+  const opts = $("opts");
+  let cls = "options";
+  if (q.type === "animal" || q.type === "dish") cls += " two";
+  if (q.type === "trap") cls += " nums";
+  opts.className = cls;
+
+  q.options.forEach((label, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.innerHTML = `<span>${label}</span>`;
+    b.onclick = () => choose(i, b);
+    opts.appendChild(b);
+  });
+  // scroll to top
+  document.querySelector(".scroll").scrollTop = 0;
+}
+
+function choose(i, btn) {
+  if (state.answered) return;
+  state.answered = true;
+  const q = QUESTIONS[state.idx];
+  const correct = i === q.answer;
+  state.results[state.idx] = correct;
+  if (correct) state.correct++;
+
+  // 标记按钮
+  const buttons = Array.from(document.querySelectorAll("#opts .opt"));
+  buttons.forEach((b, bi) => {
+    b.onclick = null;
+    if (bi === q.answer) { b.classList.add("correct"); b.insertAdjacentHTML("beforeend", `<span class="ic">✓</span>`); }
+    if (bi === i && !correct) { b.classList.add("wrong"); b.insertAdjacentHTML("beforeend", `<span class="ic">✗</span>`); }
+    if (bi !== q.answer && bi !== i) b.classList.add("dim");
+  });
+
+  // 反馈
+  const fb = $("fb");
+  if (q.type === "trap") {
+    // 陷阱题：保持悬念，不直接点破，只给中性反馈
+    fb.className = "feedback " + (correct ? "ok" : "no");
+    fb.innerHTML = correct
+      ? `<b>有点东西。</b>你顶住了「鹅」的心理暗示。至于为什么——结果页揭晓。`
+      : `<b>记下了。</b>你数出了「鹅腿」。到底有几个？结果页见分晓。`;
+  } else {
+    fb.className = "feedback " + (correct ? "ok" : "no");
+    fb.innerHTML = (correct ? "✅ 答对了！ " : "❌ 答错了。 ") + q.why;
+  }
+
+  $("nextRow").classList.remove("hidden");
+  $("nextBtn").onclick = () => {
+    if (state.idx === QUESTIONS.length - 1) renderResult();
+    else { state.idx++; renderQuestion(); }
+  };
+  document.querySelector(".scroll").scrollTop = document.querySelector(".scroll").scrollHeight;
+}
+
+/* ============================================================
+   屏幕：结果 + 成就 + 分享卡片
+   ============================================================ */
+function renderResult() {
+  const score = state.correct;
+  const a = ACHIEVEMENTS[score];
+  const trapCorrect = state.results[9] === true;
+
+  app.innerHTML = `
+    <div class="result-head">
+      <div class="score-ring">鹅鸭鉴定结果</div>
+      <div class="score-big">${score} / 10</div>
+    </div>
+    <div class="ach">
+      <div class="trophy">🏆</div>
+      <div class="title">${a.t}</div>
+      <p class="desc">${a.d}</p>
+      <div class="feats">
+        <div class="lbl">${a.lbl}</div>
+        <ul>${a.f.map(x => `<li>${x}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="trap-reveal">
+      🔍 <b>最后一题揭晓：</b>那四只烤腿……<b>一个鹅腿都没有，全是鸭腿。</b>
+      鹅腿数量 = <b>0</b>。${trapCorrect ? "你没被骗，阿姨同款套路对你无效。" : "你也数出了「鹅腿」——和清北学子一样。"}
+    </div>
+
+    <div class="result-actions">
+      <canvas id="cardCanvas" width="1080" height="1620"></canvas>
+      <p class="card-hint" id="cardHint">↑ 你的成就分享卡（二维码区域待补全）</p>
+      <button class="btn btn-primary" id="dlBtn" style="width:100%">⬇️ 保存成就卡片</button>
+      <button class="btn btn-ghost" id="againBtn" style="width:100%">再玩一次</button>
+    </div>
+  `;
+  $("againBtn").onclick = renderStart;
+  $("dlBtn").onclick = downloadCard;
+
+  drawCard(score, a);
+  document.querySelector(".scroll").scrollTop = 0;
+}
+
+/* ---------- canvas 绘制成就分享卡（竖向，零依赖导出） ---------- */
+let _cardReady = false;
+function drawCard(score, a, withAvatar = true) {
+  const cv = $("cardCanvas");
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  const cx = W / 2;
+
+  // 背景
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#fff8ec"); g.addColorStop(1, "#fbe9c7");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // 边框
+  ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 10;
+  roundRect(ctx, 26, 26, W - 52, H - 52, 40); ctx.stroke();
+
+  ctx.textAlign = "center";
+
+  // 顶部标题
+  ctx.fillStyle = "#a96a0e";
+  ctx.font = "700 40px 'PingFang SC','Microsoft YaHei',sans-serif";
+  ctx.fillText("《鹅鸭鉴定师》成就榜", cx, 130);
+
+  // 装饰 emoji
+  ctx.font = "84px serif";
+  ctx.fillText("🦢  🍗  🦆", cx, 240);
+
+  // 分数
+  ctx.fillStyle = "#9a8b73";
+  ctx.font = "600 34px 'PingFang SC',sans-serif";
+  ctx.fillText("本次鉴定得分", cx, 320);
+  ctx.fillStyle = "#7a4a1e";
+  ctx.font = "900 130px 'PingFang SC',sans-serif";
+  ctx.fillText(score + " / 10", cx, 450);
+
+  // 称号
+  ctx.font = "70px serif"; ctx.fillText("🏆", cx, 560);
+  ctx.fillStyle = "#a96a0e";
+  ctx.font = "900 64px 'PingFang SC',sans-serif";
+  ctx.fillText(a.t, cx, 645);
+
+  // 描述（自动换行）
+  ctx.fillStyle = "#5a4a36";
+  ctx.font = "500 36px 'PingFang SC',sans-serif";
+  let y = wrapText(ctx, a.d, cx, 720, W - 220, 50);
+
+  // 特点
+  y += 34;
+  ctx.fillStyle = "#c8861a";
+  ctx.font = "700 30px 'PingFang SC',sans-serif";
+  ctx.fillText(a.lbl, cx, y);
+  y += 50;
+  ctx.fillStyle = "#5a4a36";
+  ctx.font = "500 34px 'PingFang SC',sans-serif";
+  a.f.forEach(line => { ctx.fillText("· " + line, cx, y); y += 52; });
+
+  // 底部信息区分割线
+  const footY = H - 300;
+  ctx.strokeStyle = "#e8dcc6"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(90, footY); ctx.lineTo(W - 90, footY); ctx.stroke();
+
+  // 左：玩家头像 + 昵称
+  const avX = 180, avY = footY + 120, avR = 80;
+  // 头像底圈
+  ctx.save();
+  ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.closePath();
+  ctx.fillStyle = "#f0e3c8"; ctx.fill();
+  let drewImg = false;
+  if (withAvatar && state.user && state.user.avatar_url && drawCard._avatarImg && drawCard._avatarImg.complete && drawCard._avatarImg.naturalWidth) {
+    try {
+      ctx.clip();
+      ctx.drawImage(drawCard._avatarImg, avX - avR, avY - avR, avR * 2, avR * 2);
+      drewImg = true;
+    } catch (e) { drewImg = false; }
+  }
+  ctx.restore();
+  if (!drewImg) {
+    // 占位：首字 or 🦆
+    ctx.fillStyle = "#a96a0e";
+    ctx.font = "70px serif";
+    const initial = (state.user && state.user.name) ? state.user.name.slice(0, 1) : "🦆";
+    ctx.fillText(initial, avX, avY + 24);
+  }
+  // 头像描边
+  ctx.strokeStyle = "#c8861a"; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(avX, avY, avR, 0, Math.PI * 2); ctx.stroke();
+
+  // 昵称
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#7a4a1e";
+  ctx.font = "700 34px 'PingFang SC',sans-serif";
+  const nm = (state.user && state.user.name) ? state.user.name : "匿名鉴定师";
+  ctx.fillText(clip(ctx, nm, 240), avX, avY + avR + 60);
+
+  // 右：二维码留白方框（待补全）
+  const qs = 200, qx = W - 110 - qs, qy = footY + 30;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, qx, qy, qs, qs, 18); ctx.fill();
+  ctx.strokeStyle = "#c8861a"; ctx.setLineDash([12, 10]); ctx.lineWidth = 4;
+  roundRect(ctx, qx, qy, qs, qs, 18); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "#b3a489";
+  ctx.font = "600 26px 'PingFang SC',sans-serif";
+  ctx.fillText("二维码", qx + qs / 2, qy + qs / 2 - 6);
+  ctx.font = "500 20px 'PingFang SC',sans-serif";
+  ctx.fillText("敬请期待", qx + qs / 2, qy + qs / 2 + 30);
+
+  // 底部 slogan
+  ctx.fillStyle = "#a96a0e";
+  ctx.font = "600 26px 'PingFang SC',sans-serif";
+  ctx.fillText("扫码也来鉴定鹅鸭 · 别再被阿姨骗啦", cx, H - 60);
+
+  _cardReady = true;
+}
+
+/* 加载头像（CORS）后重绘 */
+function loadAvatarThenRedraw() {
+  if (!state.user || !state.user.avatar_url) return;
+  const im = new Image();
+  im.crossOrigin = "anonymous";
+  im.referrerPolicy = "no-referrer";
+  im.onload = () => { drawCard._avatarImg = im; if (_cardReady) drawCard(state.correct, ACHIEVEMENTS[state.correct]); };
+  im.onerror = () => {};
+  im.src = state.user.avatar_url;
+}
+
+function downloadCard() {
+  const cv = $("cardCanvas");
+  try {
+    const url = cv.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "鹅鸭鉴定师-成就卡.png";
+    a.click();
+    toast("已生成图片，可保存到相册");
+  } catch (e) {
+    // 头像跨域污染了画布 → 去掉头像重绘再导出
+    try {
+      drawCard(state.correct, ACHIEVEMENTS[state.correct], false);
+      const url = cv.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url; a.download = "鹅鸭鉴定师-成就卡.png"; a.click();
+      toast("已生成图片（头像因跨域已省略）");
+    } catch (e2) {
+      toast("当前环境不支持直接保存，请截图分享");
+    }
+  }
+}
+
+/* ---------- canvas 小工具 ---------- */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function wrapText(ctx, text, x, y, maxW, lh) {
+  const chars = text.split("");
+  let line = "", yy = y;
+  for (const ch of chars) {
+    if (ctx.measureText(line + ch).width > maxW && line) { ctx.fillText(line, x, yy); line = ch; yy += lh; }
+    else line += ch;
+  }
+  if (line) { ctx.fillText(line, x, yy); yy += lh; }
+  return yy;
+}
+function clip(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+
+/* ============================================================
+   知乎登录（复用现有 /api/auth 接口；弹窗 + 轮询，不改后端）
+   ============================================================ */
+async function fetchMe() {
+  try {
+    const r = await fetch("/api/auth/me", { credentials: "include" });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data && data.user ? data.user : null;
+  } catch (e) { return null; }
+}
+
+function applyUser(user) {
+  state.user = user;
+  const chip = $("loginChip"), nm = $("chipName"), av = $("chipAvatar");
+  if (user) {
+    nm.textContent = user.name || "知乎用户";
+    if (user.avatar_url) { av.src = user.avatar_url; av.style.display = "block"; av.referrerPolicy = "no-referrer"; }
+    chip.title = "已登录知乎：" + (user.name || "");
+    loadAvatarThenRedraw();
+    if (_cardReady) drawCard(state.correct, ACHIEVEMENTS[state.correct]);
+  } else {
+    nm.textContent = "知乎登录";
+    av.style.display = "none";
+  }
+}
+
+let _pollTimer = null, _popup = null;
+function startLogin() {
+  if (state.user) { toast("已登录：" + state.user.name); return; }
+  _popup = window.open("/api/auth/login", "zhihu_login", "width=480,height=720");
+  toast("请在弹窗中完成知乎登录");
+  let tries = 0;
+  clearInterval(_pollTimer);
+  _pollTimer = setInterval(async () => {
+    tries++;
+    const user = await fetchMe();
+    if (user) {
+      clearInterval(_pollTimer);
+      applyUser(user);
+      toast("登录成功，已写入卡片");
+      try { if (_popup && !_popup.closed) _popup.close(); } catch (e) {}
+    } else if (tries > 80 || (_popup && _popup.closed)) {
+      // 弹窗关闭后再补查一次
+      const u2 = await fetchMe();
+      if (u2) applyUser(u2);
+      clearInterval(_pollTimer);
+    }
+  }, 1500);
+}
+
+// 窗口重新聚焦时兜底复查登录态
+window.addEventListener("focus", async () => {
+  if (!state.user) { const u = await fetchMe(); if (u) applyUser(u); }
+});
+
+$("loginChip").onclick = startLogin;
+
+/* ============================================================
+   启动
+   ============================================================ */
+renderStart();
+fetchMe().then(u => { if (u) applyUser(u); });
+</script>
+</body>
+</html>
