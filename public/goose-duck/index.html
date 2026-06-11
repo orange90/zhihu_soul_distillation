@@ -553,12 +553,10 @@ function renderResult() {
       <img id="cardImg" alt="鸭骗战争 · 成就分享卡" />
       <p class="card-hint" id="cardHint">👆 长按上方图片，即可保存到相册或转发好友</p>
       <canvas id="cardCanvas" class="hidden"></canvas>
-      <button class="btn btn-primary" id="dlBtn" style="width:100%">⬇️ 保存图片</button>
       <button class="btn btn-ghost" id="againBtn" style="width:100%">再玩一次</button>
     </div>
   `;
   $("againBtn").onclick = renderStart;
-  $("dlBtn").onclick = downloadCard;
 
   drawCard(score, a);
   document.querySelector(".scroll").scrollTop = 0;
@@ -754,21 +752,6 @@ function loadAvatarThenRedraw() {
   im.onload = () => { drawCard._avatarImg = im; if (_cardReady) drawCard(state.correct, ACHIEVEMENTS[state.correct]); };
   im.onerror = () => {};
   im.src = state.user.avatar_url;
-}
-
-function downloadCard() {
-  const img = $("cardImg");
-  if (!img || !img.src) { toast("图片生成中，请稍候再试"); return; }
-  try {
-    const a = document.createElement("a");
-    a.href = img.src;
-    a.download = "鸭骗战争-成就卡.png";
-    a.click();
-    toast("若未自动下载，请长按上方图片保存到相册");
-  } catch (e) {
-    // 微信等内置浏览器不支持下载属性 → 引导长按
-    toast("请长按上方图片保存到相册");
-  }
 }
 
 /* ---------- canvas 小工具 ---------- */
